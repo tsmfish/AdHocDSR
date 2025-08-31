@@ -1,0 +1,16 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Specify the Ruff version (use the latest or a specific version)
+    rev: v0.12.11
+    hooks:
+      # Run the linter
+      - id: ruff-check
+        args: [--fix] # Optional: Automatically fix linting issues
+      # Run the formatter
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [ --maxkb=2048 ] # Limit file size to 2048 kb
