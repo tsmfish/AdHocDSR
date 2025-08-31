@@ -12,12 +12,13 @@ PackType = Literal[
 # Base Class for Packets
 # ---------------------------------------------------------------------------------------------------------------
 class BasePack(ABC):
-    def __init__(self, pack_type: PackType):
+    def __init__(self, pack_type: PackType, ttl: int = 32):
         self.type: PackType = pack_type
         self.path: list[int] = []
         self.start_time: int = 0
         self.current_node_id: int = -1
         self.size_was_sent: int = 0
+        self.ttl: int = ttl  # Time To Live - limit of hops for package send
 
     @abstractmethod
     def get_size(self) -> int:
