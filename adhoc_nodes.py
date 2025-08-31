@@ -1,6 +1,7 @@
 import random
 from copy import deepcopy
 import adhoc_pack
+from adhoc_pack import RRegPack
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -116,7 +117,7 @@ class AdHocNode:
         self.queue_to_send = []
         self.queue_wait = []
         self.queue_receiving = []
-        self.queue_rereg = []
+        self.queue_rereg: list[RRegPack] = []
 
     # -----------------------------
     def check_connect_to(self, node_id):
@@ -141,12 +142,12 @@ class AdHocNode:
     def _receive_pack(self, cur_pack):
         cur_pack.size_was_sent = 0
         if cur_pack.type == "rreg":
-            if self.check_connect_to(cur_pack.target_node):
-                cur_pack.add_node(cur_pack.target_node)
+            if self.check_connect_to(cur_pack.target_node_id):
+                cur_pack.add_node(cur_pack.target_node_id)
                 self._send_rrep(cur_pack)
             else:
                 for rreg_pack in self.queue_rereg:
-                    if cur_pack.target_node == rreg_pack.target_node:
+                    if cur_pack.target_node_id == rreg_pack.target_node_id:
                         self.queue_rereg.append(cur_pack)
                         return
                 self.queue_rereg.append(cur_pack)
@@ -165,10 +166,10 @@ class AdHocNode:
                 if self.node_id == 12:
                     print("Test")
                 for rreg_pack in self.queue_rereg:
-                    if (
-                        cur_pack.target_node == rreg_pack.target_node
-                        and cur_pack.path[0] == rreg_pack.path[0]
-                    ):
+                    print(
+                        f"package id: {cur_pack.current_node_id}, type: {cur_pack.type}"
+                    )
+                    if cur_pack.path[0] == rreg_pack.path[0]:
                         new_pack = deepcopy(cur_pack)
                         new_pack.path = rreg_pack.path + same_path
                         new_pack.set_current_node(self.node_id)
@@ -178,7 +179,7 @@ class AdHocNode:
                 self.queue_rereg = new_queue
 
         if cur_pack.type == "data":
-            if cur_pack.target_node == self.node_id:
+            if cur_pack.target_node_id == self.node_id:
                 self.model_air.add_report(
                     cur_pack.path[0],
                     cur_pack.path[-1],
@@ -192,7 +193,7 @@ class AdHocNode:
     # -----------------------------
     def _send_rrep(self, rreg_pack):
         new_pack = adhoc_pack.RRepPack(rreg_pack.path)
-        cur_con = self.get_connect_to(rreg_pack.target_node)
+        cur_con = self.get_connect_to(rreg_pack.target_node_id)
         new_pack.add_connect_inform(cur_con.get_quality_param())
         new_pack.set_current_node(self.node_id)
         cur_con = self.get_connect_to(new_pack.get_next_hop())
@@ -204,7 +205,7 @@ class AdHocNode:
     def _check_rrep(self, rrep_pack):
         new_queue = []
         for pack in self.queue_wait:
-            if pack.target_node == rrep_pack.path[-1]:
+            if pack.target_node_id == rrep_pack.path[-1]:
                 pack.path = rrep_pack.path
                 self.queue_to_send.append(pack)
             else:
