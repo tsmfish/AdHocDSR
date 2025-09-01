@@ -188,10 +188,10 @@ class AdHocNode:
                     self.model_air.get_current_time() - cur_pack.start_time,
                 )
             else:
-                # if cur_pack.ttl > 0:
-                #     cur_pack.ttl = cur_pack.ttl - 1
-                cur_pack.set_current_node(self.node_id)
-                self.queue_to_send.append(cur_pack)
+                if cur_pack.ttl > 0:
+                    cur_pack.ttl = cur_pack.ttl - 1
+                    cur_pack.set_current_node(self.node_id)
+                    self.queue_to_send.append(cur_pack)
 
     # -----------------------------
     def _send_rrep(self, rreg_pack):
