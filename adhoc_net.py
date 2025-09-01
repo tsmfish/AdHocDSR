@@ -152,8 +152,8 @@ class AdHocNet:
         rez = ["queue_to_send"]
         for node in self.nodes_list:
             state = ""
-            if node.node_id == 11:
-                print("Test")
+            # if node.node_id == 11:
+            #     print("Test")
             for q in node.queue_to_send:
                 if q is RRegPack or q is DataPack:
                     state = (
@@ -276,8 +276,8 @@ class AdHocNet:
         # self.debug_nodes_current_state_list.append(rez)
 
         for node in self.nodes_list:
-            if node.node_id == 11:
-                print("Test")
+            # if node.node_id == 11:
+            #     print("Test")
             node.receive_tik()
 
 
@@ -292,7 +292,7 @@ if __name__ == "__main__":
     ad_hoc.load_net_from_file(file_name=current_directory + r"\AdHoc_Net_test.xlsx")
     ad_hoc.show_net()
     ad_hoc.send_message(source_node=31, target_node=23, message_length=100000)
-    for i in range(100):
+    for i in range(200):
         ad_hoc.collect_debug_information()
         ad_hoc.turn_one_tik()
 
