@@ -13,10 +13,16 @@ class AdHocConnect:
         self.current_bit_rate_error = 0.01
         self.snr = 2
         self.flag_work = True
-        self.default_byte_per_tik = 10000
-        self.current_byte_per_tik = 10000
+        self.default_byte_per_tik = 1000
+        self.current_byte_per_tik = 1000
         self.sent_byte_in_current_tic = 0
         # self.sent_byte_in_current_tic_to_back = 0
+        # jamm parameters   -------------------------------------------------
+        self.signal_value =  20.0 # mkwat
+        self.noice_value = 2.0  # mkwat
+        # self.error_probability = 2.0  #
+        self._jamm_threshold = 20.0  #
+
 
     # ---------------------------------------------------------------------------------------------------------------
     def get_nodes(self):
@@ -25,6 +31,17 @@ class AdHocConnect:
     # ---------------------------------------------------------------------------------------------------------------
     def get_quality_param(self):
         return self.snr
+
+    # ---------------------------------------------------------------------------------------------------------------
+    def calculate_error_probability(self):
+        snr = 1.0
+        self._jamm_threshold = 499
+        if self.signal_value  >  self.noice_value:
+            snr = self.signal_value / self.noice_value
+            self._jamm_threshold =min( 10000 *((1 - (1 / (1 + 2.71818281828 ** (-snr)))) ** 2 ),499)
+
+
+        return
 
     # ---------------------------------------------------------------------------------------------------------------
     def send_one_tik_part(self):
@@ -38,9 +55,9 @@ class AdHocConnect:
     # ---------------------------------------------------------------------------------------------------------------
     def _send_one_tik_part(self, source_node, target_node):
         non_send_pack = []
-        # if source_node.node_id == 12:
-        #     print("Test")
         for pack in source_node.queue_to_send:
+            # if source_node.node_id == 22 and pack.type == "data":
+            #     print("Test")
             # if pack.type ==  "data":
             #     print("Test")
             if pack.get_next_hop() == target_node.node_id:
@@ -66,11 +83,12 @@ class AdHocConnect:
             self.sent_byte_in_current_tic += part_size
             if not self._check_error(size):
                 total_send += size
-
         return total_send
 
     # ---------------------------------------------------------------------------------------------------------------
     def _check_error(self, size):
+        if random.randint(0, 500) < self._jamm_threshold:
+            return True
         return False
 
     # ---------------------------------------------------------------------------------------------------------------
@@ -181,12 +199,8 @@ class AdHocNode:
 
         if isinstance(cur_pack, DataPack):
             if cur_pack.target_node_id == self.node_id:
-                self.model_air.add_report(
-                    cur_pack.path[0],
-                    cur_pack.path[-1],
-                    cur_pack.path[0],
-                    self.model_air.get_current_time() - cur_pack.start_time,
-                )
+                self.model_air.add_report( source_node=cur_pack.path[0], target_node=cur_pack.path[-1],
+                     path=cur_pack.path,full_time=self.model_air.get_current_time() - cur_pack.start_time )
             else:
                 if cur_pack.ttl > 0:
                     cur_pack.ttl = cur_pack.ttl - 1

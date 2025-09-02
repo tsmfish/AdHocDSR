@@ -31,10 +31,12 @@ class AdHocNet:
 
         # debug variables   --------------------------------------------------
         self.debug_nodes_current_state_list = []
+        self.flag_debug = False
 
         # jamm parameters   --------------------------------------------------
         self.jamm_x = 700
-        self.jamm_y = 500
+        self.jamm_y = 800
+        self.jamm_power = 20000  # mkwat
 
     # ---------------------------------------------------------------------------------------------------------------
     def create_net(self):
@@ -78,6 +80,25 @@ class AdHocNet:
                             self.connect_list.append(new_connect)
                             if len(cur_node.connect_list) >= cur_node.__conection_count:
                                 break
+        self.set_jamm_to_connects()
+
+    @staticmethod
+    def noise_spread(distance, source_noice):
+        return source_noice/((distance/10)**2)
+
+    # ---------------------------------------------------------------------------------------------------------------
+    def set_jamm_to_connects(self):
+        for connect in self.connect_list:
+            # for node in connect.nodes_pointers:
+            #     distance = ((node.position_y - self.jamm_y) ** 2 +
+            #                 (node.position_x - self.jamm_x) ** 2) ** 0.5
+            #     print(f"{distance:.2f}")
+            noice_value = [self.noise_spread(distance=((node.position_y-self.jamm_y)**2 +
+                                          (node.position_x-self.jamm_x)**2) **0.5, source_noice=self.jamm_power)
+                           for node in connect.nodes_pointers]
+            noice_value.append(2.0)
+            connect.noice_value =max(noice_value)
+            connect.calculate_error_probability()
 
     # ---------------------------------------------------------------------------------------------------------------
     def get_current_time(self):
@@ -102,7 +123,7 @@ class AdHocNet:
 
     # ---------------------------------------------------------------------------------------------------------------
     def add_report(self, source_node, target_node, path, full_time):
-        self.reports_list.append([source_node, target_node, path, full_time])
+        self.reports_list.append([ self.get_current_time(), source_node, target_node, str(path),len(path), full_time])
 
     # ---------------------------------------------------------------------------------------------------------------
     def show_net(self):
@@ -110,8 +131,8 @@ class AdHocNet:
             [self._plase_y_size, self._plase_x_size, 3], dtype=numpy.uint8
         )
         # output jamm
-        for x in range(1000, 100, -10):
-            col_int = min(int(255 / ((x / 200) ** 2)), 255)
+        for x in range(1400, 100, -10):
+            col_int = min(int(255 / ((x / 350) ** 2)), 255)
             cv2.circle(
                 output_image, (self.jamm_x, self.jamm_y), x, (30, 0, col_int), -1
             )
@@ -193,6 +214,37 @@ class AdHocNet:
         wb.save(file_name)
 
     # ---------------------------------------------------------------------------------------------------------------
+    def save_statistics_information(self, file_name):
+        wb = openpyxl.Workbook()
+        curr_sheet = wb.worksheets[0]
+        curr_sheet.title = "Pack"
+        curr_sheet.append(["current time", "source node", "target node", "path",  "hop","delay time"])
+        for row in self.reports_list:
+            curr_sheet.append(row)
+
+        curr_sheet = wb.create_sheet("state")
+        curr_sheet.append(
+            [
+                "first node",
+                "second node",
+                "signal_value",
+                "noice_value",
+                "_jamm_threshold",
+            ]
+        )
+        for connect in self.connect_list:
+            curr_sheet.append(
+                [
+                    str(connect.nodes_pointers[0].node_id),
+                    str(connect.nodes_pointers[1].node_id),
+                    str(connect.signal_value),
+                    f"{connect.noice_value:.2f}",
+                    f"{connect._jamm_threshold:.1f}",
+                ]
+            )
+        wb.save(file_name)
+
+    # ---------------------------------------------------------------------------------------------------------------
     def save_net_to_file(self, file_name):
         wb = openpyxl.Workbook()
         curr_sheet = wb.worksheets[0]
@@ -260,6 +312,7 @@ class AdHocNet:
             cur_node.connect_list.append(new_connect)
             other_node.connect_list.append(new_connect)
             self.connect_list.append(new_connect)
+        self.set_jamm_to_connects()
 
     # ---------------------------------------------------------------------------------------------------------------
     def turn_one_tik(self):
@@ -286,6 +339,7 @@ class AdHocNet:
 # ----------------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
     ad_hoc = AdHocNet()
+    ad_hoc.flag_debug = True
     # ad_hoc.create_net()
     current_directory = os.getcwd()
     # ad_hoc.save_net_to_file(current_directory + r'\AdHoc_Net_test.xlsx')
@@ -297,3 +351,4 @@ if __name__ == "__main__":
         ad_hoc.turn_one_tik()
 
     ad_hoc.save_debug_information(file_name=current_directory + r"\debug.xlsx")
+    ad_hoc.save_statistics_information(file_name=current_directory + r"\statistics.xlsx")
