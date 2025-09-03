@@ -1,6 +1,7 @@
 import random
 from copy import deepcopy
 from adhoc_pack import RRegPack, BasePack, DataPack, RRepPack
+from typing import  Any
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -55,9 +56,10 @@ class AdHocConnect:
     # ---------------------------------------------------------------------------------------------------------------
     def _send_one_tik_part(self, source_node, target_node):
         non_send_pack = []
+        # if source_node.node_id == 31:
+        #     print("Test")
         for pack in source_node.queue_to_send:
-            # if source_node.node_id == 22 and pack.type == "data":
-            #     print("Test")
+
             # if pack.type ==  "data":
             #     print("Test")
             if pack.get_next_hop() == target_node.node_id:
@@ -138,6 +140,7 @@ class AdHocNode:
         self.queue_wait = []
         self.queue_receiving = []
         self.queue_rereg: list[RRegPack] = []
+        # -- # variables for test only--------
 
     # -----------------------------
     def check_connect_to(self, node_id):
@@ -157,6 +160,7 @@ class AdHocNode:
         for cur_pack in self.queue_receiving:
             self._receive_pack(cur_pack)
         self.queue_receiving = []
+        self._check_data_send()
 
     # -----------------------------
     def _receive_pack(self, cur_pack: BasePack):
@@ -199,8 +203,9 @@ class AdHocNode:
 
         if isinstance(cur_pack, DataPack):
             if cur_pack.target_node_id == self.node_id:
-                self.model_air.add_report( source_node=cur_pack.path[0], target_node=cur_pack.path[-1],
-                     path=cur_pack.path,full_time=self.model_air.get_current_time() - cur_pack.start_time )
+                if not (cur_pack.add_information is None):
+                    self.model_air.add_report( source_node=cur_pack.path[0], target_node=cur_pack.path[-1],
+                         path=cur_pack.path,full_time=self.model_air.get_current_time() - cur_pack.start_time )
             else:
                 if cur_pack.ttl > 0:
                     cur_pack.ttl = cur_pack.ttl - 1
@@ -220,15 +225,34 @@ class AdHocNode:
 
     # -----------------------------
     def _check_rrep(self, rrep_pack):
+
+        for pack in self.queue_wait:
+            if pack.target_node_id == rrep_pack.target_node_id:
+                rrep_pack.start_time = self.model_air.get_current_time()
+                pack.rrep_list.append(rrep_pack)
+
+    # # -----------------------------
+    # def _select_best_path(self, rrep_list:list[Any]):
+
+
+    # -----------------------------
+    def _check_data_send(self):
         new_queue = []
         for pack in self.queue_wait:
-            if pack.target_node_id == rrep_pack.path[-1]:
-                pack.path = rrep_pack.path
-                pack.set_current_node(self.node_id)
-                self.queue_to_send.append(pack)
-            else:
-                new_queue.append(pack)
+            if len(pack.rrep_list) > 0:
+                if self.model_air.get_current_time() > min([rrep.start_time for rrep in pack.rrep_list]) + 10:
+                    for rrep in pack.rrep_list:
+                        test_pack = deepcopy(pack)
+                        test_pack.path = rrep.path
+                        test_pack.add_information=rrep.add_information
+                        test_pack.metrics = {'simple metric':0}
+                        self.model_air.add_data_pack_for_investigation(test_pack)
+                    continue
+            new_queue.append(pack)
         self.queue_wait = new_queue
+
+
+
 
     # -----------------------------
     def send_message_to(self, target_node, data_size):

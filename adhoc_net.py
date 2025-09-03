@@ -1,3 +1,6 @@
+from copy import deepcopy
+from typing import Literal, Any
+
 import adhoc_nodes
 import random
 import cv2
@@ -26,12 +29,15 @@ class AdHocNet:
         self.connect_list = []
         self.system_time = 0
         self.id_counter = 1
+
         # Control variables  (variables for collecting statistics) --------------------------------------------------
         self.reports_list = []
 
         # debug variables   --------------------------------------------------
         self.debug_nodes_current_state_list = []
         self.flag_debug = False
+        self.investigation_flag = False
+        self.investigation_queue = []
 
         # jamm parameters   --------------------------------------------------
         self.jamm_x = 700
@@ -82,9 +88,64 @@ class AdHocNet:
                                 break
         self.set_jamm_to_connects()
 
+    # ---------------------------------------------------------------------------------------------------------------
     @staticmethod
     def noise_spread(distance, source_noice):
         return source_noice/((distance/10)**2)
+
+    # ---------------------------------------------------------------------------------------------------------------
+    def add_data_pack_for_investigation(self, pack:DataPack):
+        if self.investigation_flag:
+            return
+        self.investigation_queue.append(pack)
+        return
+
+    def check_activity(self):
+        for node in self.nodes_list:
+            for cur_pack in node.queue_to_send:
+                if isinstance(cur_pack, DataPack):
+                    return True
+        return False
+
+    # ---------------------------------------------------------------------------------------------------------------
+    def run_investigation(self):
+        if self.investigation_flag or len(self.investigation_queue) == 0:
+            return
+        self.investigation_flag = True
+        state_virtual_copy = {'nodes':deepcopy(self.nodes_list), 'connect':deepcopy(self.connect_list),
+                              'time':self.system_time }
+        for q in self.investigation_queue:
+            self.nodes_list = state_virtual_copy['nodes']
+            self.connect_list = state_virtual_copy['connect']
+            for node in self.nodes_list:
+                node.connect_list = []
+                node.model_air = self
+            for connect in self.connect_list:
+                connect.nodes_pointers[0] = self.get_node_by_id(connect.nodes_pointers[0].node_id)
+                connect.nodes_pointers[1] = self.get_node_by_id(connect.nodes_pointers[1].node_id)
+                connect.nodes_pointers[0].connect_list.append(connect)
+                connect.nodes_pointers[1].connect_list.append(connect)
+
+            self.system_time = state_virtual_copy['time']
+            source_node = self.get_node_by_id(q.path[0])
+            q.set_current_node(q.path[0])
+            source_node.queue_to_send.append(q)
+            while (self.check_activity()):
+                self.turn_one_tik()
+            out_line = ("\rinvestigation " + str(self.investigation_queue.index(q)+1) + " // " +
+                                     str(len(self.investigation_queue)))
+            print(out_line, end="", flush=True)
+
+        self.nodes_list = state_virtual_copy['nodes']
+        self.connect_list = state_virtual_copy['connect']
+        for node in self.nodes_list:
+            node.connect_list = []
+        for connect in self.connect_list:
+            connect.nodes_pointers[0] = self.get_node_by_id(connect.nodes_pointers[0].node_id)
+            connect.nodes_pointers[1] = self.get_node_by_id(connect.nodes_pointers[1].node_id)
+            connect.nodes_pointers[0].connect_list.append(connect)
+            connect.nodes_pointers[1].connect_list.append(connect)
+        self.investigation_flag = False
 
     # ---------------------------------------------------------------------------------------------------------------
     def set_jamm_to_connects(self):
@@ -124,6 +185,7 @@ class AdHocNet:
     # ---------------------------------------------------------------------------------------------------------------
     def add_report(self, source_node, target_node, path, full_time):
         self.reports_list.append([ self.get_current_time(), source_node, target_node, str(path),len(path), full_time])
+        return
 
     # ---------------------------------------------------------------------------------------------------------------
     def show_net(self):
@@ -320,17 +382,7 @@ class AdHocNet:
         for connect in self.connect_list:
             connect.send_one_tik_part()
 
-        # rez = ['queue_receiving']
-        # for node in self.nodes_list:
-        #     state = ''
-        #     for q in node.queue_receiving:
-        #         state = state + str(q.path)+';\n'
-        #     rez.append(state)
-        # self.debug_nodes_current_state_list.append(rez)
-
         for node in self.nodes_list:
-            # if node.node_id == 11:
-            #     print("Test")
             node.receive_tik()
 
 
@@ -349,6 +401,7 @@ if __name__ == "__main__":
     for i in range(200):
         ad_hoc.collect_debug_information()
         ad_hoc.turn_one_tik()
+        ad_hoc.run_investigation()
 
     ad_hoc.save_debug_information(file_name=current_directory + r"\debug.xlsx")
     ad_hoc.save_statistics_information(file_name=current_directory + r"\statistics.xlsx")

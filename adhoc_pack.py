@@ -1,4 +1,4 @@
-from typing import Literal, Any
+from typing import Literal, Any, TypedDict
 from abc import ABC, abstractmethod
 
 PackType = Literal[
@@ -68,6 +68,7 @@ class RRepPack(BasePack):
         self.path: list[int] = path
         self.add_information: list[Any] = []
         self.current_node_id: int = path[-3] if len(path) >= 3 else -1
+        self.target_node_id = path[-1]
 
     def get_next_hop(self) -> int:
         index = self.path.index(self.current_node_id)
@@ -89,6 +90,10 @@ class DataPack(BasePack):
         self.target_node_id: int = target_node_id
         self.size: int = data_size
         self.id: int = 0
+        # variables for test only
+        self.add_information: list[Any] = None
+        self.metrics : TypedDict = None
+        self.rrep_list: list[Any] = []
 
     def get_size(self) -> int:
         return 20 + len(self.path) * 4 + self.size
