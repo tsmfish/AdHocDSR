@@ -18,7 +18,8 @@ class BasePack(ABC):
         self.start_time: int = 0
         self.current_node_id: int = -1
         self.size_was_sent: int = 0
-        self.ttl: int = ttl  # Time To Live - limit of hops for package send
+        self.ttl: int = ttl  # Time To Live - limit of hops for package
+        self.time_receive_in_current_node = 0
 
     @abstractmethod
     def get_size(self) -> int:

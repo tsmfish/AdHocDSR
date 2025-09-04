@@ -1,5 +1,5 @@
 import random
-from copy import deepcopy
+from copy import deepcopy, copy
 from adhoc_pack import RRegPack, BasePack, DataPack, RRepPack
 from typing import  Any
 
@@ -56,17 +56,30 @@ class AdHocConnect:
     # ---------------------------------------------------------------------------------------------------------------
     def _send_one_tik_part(self, source_node, target_node):
         non_send_pack = []
-        # if source_node.node_id == 31:
-        #     print("Test")
-        for pack in source_node.queue_to_send:
 
+        for pack in source_node.queue_to_send:
             # if pack.type ==  "data":
             #     print("Test")
             if pack.get_next_hop() == target_node.node_id:
+                # if source_node.node_id == 7 and pack.type ==  "rrep":
+                #     print("TTest")
+
                 pack.size_was_sent += self._try_to_send_pack(pack)
                 if pack.size_was_sent == pack.get_size():
                     target_node.queue_receiving.append(pack)
                     continue
+            delay_time = source_node.model_air.get_current_time() -  pack.time_receive_in_current_node
+            if   10 < delay_time:
+                if  pack.type ==  "data":
+                    print("connect TTest")
+                source_node.model_air.add_lost(source_node=pack.path[0], target_node=pack.target_node_id,
+                                               path= str(pack.path),
+                                               break_node=str(source_node.node_id) + ':' + str(pack.get_next_hop()),
+                                               pack_type=pack.type)
+                # if pack.type ==  "data":
+                #     print("TTest connect")
+
+                continue
             non_send_pack.append(pack)
 
         source_node.queue_to_send = non_send_pack
@@ -162,6 +175,10 @@ class AdHocNode:
         self.queue_receiving = []
         self._check_data_send()
 
+    def _add_to_queue_to_send(self, cur_pack):
+        cur_pack.set_current_node(self.node_id)
+        cur_pack.time_receive_in_current_node = self.model_air.get_current_time()
+        self.queue_to_send.append(cur_pack)
     # -----------------------------
     def _receive_pack(self, cur_pack: BasePack):
         cur_pack.size_was_sent = 0
@@ -181,25 +198,33 @@ class AdHocNode:
                         nn = con.get_other_node(self.node_id)
                         new_pack = deepcopy(cur_pack)
                         if new_pack.add_node(nn.node_id):
-                            self.queue_to_send.append(new_pack)
+                            self._add_to_queue_to_send(new_pack)
 
         if isinstance(cur_pack, RRepPack):
             if cur_pack.path[0] == self.node_id:
                 self._check_rrep(cur_pack)
             else:
-                new_queue = []
+
                 same_path = cur_pack.path[cur_pack.path.index(self.node_id) + 1 :]
-                # if self.node_id == 12:
+                # if self.node_id == 28:
                 #     print("Test")
                 for rreg_pack in self.queue_rereg:
                     if cur_pack.path[0] == rreg_pack.path[0]:
-                        new_pack = deepcopy(cur_pack)
-                        new_pack.path = rreg_pack.path + same_path
-                        new_pack.set_current_node(self.node_id)
-                        self.queue_to_send.append(new_pack)
-                    else:
-                        new_queue.append(rreg_pack)
-                self.queue_rereg = new_queue
+                        fl_add = True
+                        for pp in same_path:
+                            if pp in rreg_pack.path:
+                                fl_add = False
+                        if fl_add:
+                            new_pack = deepcopy(cur_pack)
+                            new_pack.path = rreg_pack.path + same_path
+                            new_pack.set_current_node(self.node_id)
+                            self._add_to_queue_to_send(new_pack)
+
+        new_queue = []
+        for rreg_pack in self.queue_rereg:
+            if rreg_pack.start_time + 50 > self.model_air.get_current_time():
+                 new_queue.append(rreg_pack)
+        self.queue_rereg = new_queue
 
         if isinstance(cur_pack, DataPack):
             if cur_pack.target_node_id == self.node_id:
@@ -210,7 +235,7 @@ class AdHocNode:
                 if cur_pack.ttl > 0:
                     cur_pack.ttl = cur_pack.ttl - 1
                     cur_pack.set_current_node(self.node_id)
-                    self.queue_to_send.append(cur_pack)
+                    self._add_to_queue_to_send(cur_pack)
 
     # -----------------------------
     def _send_rrep(self, rreg_pack):
@@ -221,7 +246,7 @@ class AdHocNode:
         cur_con = self.get_connect_to(new_pack.get_next_hop())
         new_pack.add_connect_inform(cur_con.get_quality_param())
         new_pack.start_time = rreg_pack.start_time
-        self.queue_to_send.append(new_pack)
+        self._add_to_queue_to_send(new_pack)
 
     # -----------------------------
     def _check_rrep(self, rrep_pack):
@@ -240,9 +265,10 @@ class AdHocNode:
         new_queue = []
         for pack in self.queue_wait:
             if len(pack.rrep_list) > 0:
-                if self.model_air.get_current_time() > min([rrep.start_time for rrep in pack.rrep_list]) + 10:
+                all_time = [rrep.start_time for rrep in pack.rrep_list]
+                if self.model_air.get_current_time() > (min(all_time) + 20):
                     for rrep in pack.rrep_list:
-                        test_pack = deepcopy(pack)
+                        test_pack = copy(pack)
                         test_pack.path = rrep.path
                         test_pack.add_information=rrep.add_information
                         test_pack.metrics = {'simple metric':0}
@@ -263,7 +289,7 @@ class AdHocNode:
         cur_pack.id = self.model_air.get_new_pack_id()
         #  check one hop connection
         if self.check_connect_to(target_node):
-            self.queue_to_send.append(cur_pack)
+            self._add_to_queue_to_send(cur_pack)
             return
 
         # add pack to wait queue and wait until not  received RREP pack
@@ -274,6 +300,6 @@ class AdHocNode:
             nn = con.get_other_node(self.node_id)
             cur_pack.add_node(nn.node_id)
             cur_pack.start_time = self.model_air.get_current_time()
-            self.queue_to_send.append(cur_pack)
+            self._add_to_queue_to_send(cur_pack)
 
     # -----------------------------

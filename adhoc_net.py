@@ -1,4 +1,4 @@
-from copy import deepcopy
+# from copy import deepcopy
 from typing import Literal, Any
 
 import adhoc_nodes
@@ -32,12 +32,14 @@ class AdHocNet:
 
         # Control variables  (variables for collecting statistics) --------------------------------------------------
         self.reports_list = []
+        self.lost_list = []
 
         # debug variables   --------------------------------------------------
         self.debug_nodes_current_state_list = []
         self.flag_debug = False
         self.investigation_flag = False
         self.investigation_queue = []
+
 
         # jamm parameters   --------------------------------------------------
         self.jamm_x = 700
@@ -101,6 +103,11 @@ class AdHocNet:
         return
 
     def check_activity(self):
+        # for node in self.nodes_list:
+        #     for cur_pack in node.queue_to_send:
+        #         if isinstance(cur_pack, DataPack):
+        #             print(str(cur_pack.current_node_id) + '   ' + str(cur_pack.path))
+
         for node in self.nodes_list:
             for cur_pack in node.queue_to_send:
                 if isinstance(cur_pack, DataPack):
@@ -108,43 +115,68 @@ class AdHocNet:
         return False
 
     # ---------------------------------------------------------------------------------------------------------------
+    def __copy_nodes_param(self):
+        backup_nodes = []
+        for node in self.nodes_list:
+            backup_nodes.append({'id':node.node_id,'position_x':node.position_x,'position_y':node.position_y })
+        return backup_nodes
+
+        # ---------------------------------------------------------------------------------------------------------------
+    def __nodes_from_backup(self, backup_nodes):
+        self.nodes_list = []
+        for node in backup_nodes:
+            new_node = adhoc_nodes.AdHocNode(node_id=node['id'], y=node['position_y'], x=node['position_x'],
+                model_air=self )
+            self.nodes_list.append(new_node)
+
+    # ---------------------------------------------------------------------------------------------------------------
+    def __copy_connects_param(self):
+        backup_connect = []
+        for connect in self.connect_list:
+            backup_connect.append({'source':connect.nodes_pointers[0].node_id,
+                                   'target':connect.nodes_pointers[1].node_id,
+                                   'default_bit_rate_error':connect.default_bit_rate_error,
+                                   'default_byte_per_tik':connect.default_byte_per_tik,
+                                   'signal_value':connect.signal_value,})
+        return backup_connect
+    # ---------------------------------------------------------------------------------------------------------------
+    def __connects_from_backup(self, backup_connect):
+        self.connect_list = []
+        for connect in backup_connect:
+            cur_node = self.get_node_by_id(connect['source'])
+            other_node = self.get_node_by_id(connect['target'])
+            new_connect = adhoc_nodes.AdHocConnect(cur_node, other_node)
+            new_connect.default_bit_rate_error = connect['default_bit_rate_error']
+            new_connect.default_byte_per_tik = connect['default_byte_per_tik']
+            new_connect.signal_value = connect['signal_value']
+            self.connect_list.append(new_connect)
+        self.set_jamm_to_connects()
+   # ---------------------------------------------------------------------------------------------------------------
     def run_investigation(self):
         if self.investigation_flag or len(self.investigation_queue) == 0:
             return
         self.investigation_flag = True
-        state_virtual_copy = {'nodes':deepcopy(self.nodes_list), 'connect':deepcopy(self.connect_list),
-                              'time':self.system_time }
-        for q in self.investigation_queue:
-            self.nodes_list = state_virtual_copy['nodes']
-            self.connect_list = state_virtual_copy['connect']
-            for node in self.nodes_list:
-                node.connect_list = []
-                node.model_air = self
-            for connect in self.connect_list:
-                connect.nodes_pointers[0] = self.get_node_by_id(connect.nodes_pointers[0].node_id)
-                connect.nodes_pointers[1] = self.get_node_by_id(connect.nodes_pointers[1].node_id)
-                connect.nodes_pointers[0].connect_list.append(connect)
-                connect.nodes_pointers[1].connect_list.append(connect)
+        backup_nodes = self.__copy_nodes_param()
+        backup_connect = self.__copy_connects_param()
+        investigation_time = self.system_time
 
-            self.system_time = state_virtual_copy['time']
+        for q in self.investigation_queue:
+            self.__nodes_from_backup(backup_nodes)
+            self.__connects_from_backup(backup_connect)
+            self.system_time = investigation_time
             source_node = self.get_node_by_id(q.path[0])
-            q.set_current_node(q.path[0])
-            source_node.queue_to_send.append(q)
+            source_node._add_to_queue_to_send(q)
+            # q.set_current_node(q.path[0])
+            # source_node.queue_to_send.append(q)
             while (self.check_activity()):
                 self.turn_one_tik()
             out_line = ("\rinvestigation " + str(self.investigation_queue.index(q)+1) + " // " +
                                      str(len(self.investigation_queue)))
             print(out_line, end="", flush=True)
-
-        self.nodes_list = state_virtual_copy['nodes']
-        self.connect_list = state_virtual_copy['connect']
-        for node in self.nodes_list:
-            node.connect_list = []
-        for connect in self.connect_list:
-            connect.nodes_pointers[0] = self.get_node_by_id(connect.nodes_pointers[0].node_id)
-            connect.nodes_pointers[1] = self.get_node_by_id(connect.nodes_pointers[1].node_id)
-            connect.nodes_pointers[0].connect_list.append(connect)
-            connect.nodes_pointers[1].connect_list.append(connect)
+        self.investigation_queue = []
+        self.__nodes_from_backup(backup_nodes)
+        self.__connects_from_backup(backup_connect)
+        self.system_time = investigation_time
         self.investigation_flag = False
 
     # ---------------------------------------------------------------------------------------------------------------
@@ -187,6 +219,10 @@ class AdHocNet:
         self.reports_list.append([ self.get_current_time(), source_node, target_node, str(path),len(path), full_time])
         return
 
+    def add_lost(self, source_node, target_node, path, break_node, pack_type):
+        self.lost_list.append([ self.get_current_time(), source_node, target_node, str(path),len(path),
+                                break_node,  pack_type])
+        return
     # ---------------------------------------------------------------------------------------------------------------
     def show_net(self):
         output_image = numpy.zeros(
@@ -282,6 +318,11 @@ class AdHocNet:
         curr_sheet.title = "Pack"
         curr_sheet.append(["current time", "source node", "target node", "path",  "hop","delay time"])
         for row in self.reports_list:
+            curr_sheet.append(row)
+
+        curr_sheet = wb.create_sheet("lost")
+        curr_sheet.append(["current time", "source node", "target node", "path", "hop", "break","pack type"])
+        for row in self.lost_list:
             curr_sheet.append(row)
 
         curr_sheet = wb.create_sheet("state")
@@ -384,6 +425,7 @@ class AdHocNet:
 
         for node in self.nodes_list:
             node.receive_tik()
+        print(self.system_time)
 
 
 # ---------------------------------------------------------------------------------------------------------------
