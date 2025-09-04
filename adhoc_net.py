@@ -1,5 +1,4 @@
 from copy import deepcopy
-from typing import Literal, Any
 
 import adhoc_nodes
 import random
@@ -8,7 +7,7 @@ import numpy
 import openpyxl
 import os
 
-from adhoc_pack import RRegPack, DataPack
+from adhoc_pack import DataPack
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -91,10 +90,10 @@ class AdHocNet:
     # ---------------------------------------------------------------------------------------------------------------
     @staticmethod
     def noise_spread(distance, source_noice):
-        return source_noice/((distance/10)**2)
+        return source_noice / ((distance / 10) ** 2)
 
     # ---------------------------------------------------------------------------------------------------------------
-    def add_data_pack_for_investigation(self, pack:DataPack):
+    def add_data_pack_for_investigation(self, pack: DataPack):
         if self.investigation_flag:
             return
         self.investigation_queue.append(pack)
@@ -112,37 +111,52 @@ class AdHocNet:
         if self.investigation_flag or len(self.investigation_queue) == 0:
             return
         self.investigation_flag = True
-        state_virtual_copy = {'nodes':deepcopy(self.nodes_list), 'connect':deepcopy(self.connect_list),
-                              'time':self.system_time }
+        state_virtual_copy = {
+            "nodes": deepcopy(self.nodes_list),
+            "connect": deepcopy(self.connect_list),
+            "time": self.system_time,
+        }
         for q in self.investigation_queue:
-            self.nodes_list = state_virtual_copy['nodes']
-            self.connect_list = state_virtual_copy['connect']
+            self.nodes_list = state_virtual_copy["nodes"]
+            self.connect_list = state_virtual_copy["connect"]
             for node in self.nodes_list:
                 node.connect_list = []
                 node.model_air = self
             for connect in self.connect_list:
-                connect.nodes_pointers[0] = self.get_node_by_id(connect.nodes_pointers[0].node_id)
-                connect.nodes_pointers[1] = self.get_node_by_id(connect.nodes_pointers[1].node_id)
+                connect.nodes_pointers[0] = self.get_node_by_id(
+                    connect.nodes_pointers[0].node_id
+                )
+                connect.nodes_pointers[1] = self.get_node_by_id(
+                    connect.nodes_pointers[1].node_id
+                )
                 connect.nodes_pointers[0].connect_list.append(connect)
                 connect.nodes_pointers[1].connect_list.append(connect)
 
-            self.system_time = state_virtual_copy['time']
+            self.system_time = state_virtual_copy["time"]
             source_node = self.get_node_by_id(q.path[0])
             q.set_current_node(q.path[0])
             source_node.queue_to_send.append(q)
-            while (self.check_activity()):
+            while self.check_activity():
                 self.turn_one_tik()
-            out_line = ("\rinvestigation " + str(self.investigation_queue.index(q)+1) + " // " +
-                                     str(len(self.investigation_queue)))
+            out_line = (
+                "\rinvestigation "
+                + str(self.investigation_queue.index(q) + 1)
+                + " // "
+                + str(len(self.investigation_queue))
+            )
             print(out_line, end="", flush=True)
 
-        self.nodes_list = state_virtual_copy['nodes']
-        self.connect_list = state_virtual_copy['connect']
+        self.nodes_list = state_virtual_copy["nodes"]
+        self.connect_list = state_virtual_copy["connect"]
         for node in self.nodes_list:
             node.connect_list = []
         for connect in self.connect_list:
-            connect.nodes_pointers[0] = self.get_node_by_id(connect.nodes_pointers[0].node_id)
-            connect.nodes_pointers[1] = self.get_node_by_id(connect.nodes_pointers[1].node_id)
+            connect.nodes_pointers[0] = self.get_node_by_id(
+                connect.nodes_pointers[0].node_id
+            )
+            connect.nodes_pointers[1] = self.get_node_by_id(
+                connect.nodes_pointers[1].node_id
+            )
             connect.nodes_pointers[0].connect_list.append(connect)
             connect.nodes_pointers[1].connect_list.append(connect)
         self.investigation_flag = False
@@ -154,11 +168,19 @@ class AdHocNet:
             #     distance = ((node.position_y - self.jamm_y) ** 2 +
             #                 (node.position_x - self.jamm_x) ** 2) ** 0.5
             #     print(f"{distance:.2f}")
-            noice_value = [self.noise_spread(distance=((node.position_y-self.jamm_y)**2 +
-                                          (node.position_x-self.jamm_x)**2) **0.5, source_noice=self.jamm_power)
-                           for node in connect.nodes_pointers]
+            noice_value = [
+                self.noise_spread(
+                    distance=(
+                        (node.position_y - self.jamm_y) ** 2
+                        + (node.position_x - self.jamm_x) ** 2
+                    )
+                    ** 0.5,
+                    source_noice=self.jamm_power,
+                )
+                for node in connect.nodes_pointers
+            ]
             noice_value.append(2.0)
-            connect.noice_value =max(noice_value)
+            connect.noice_value = max(noice_value)
             connect.calculate_error_probability()
 
     # ---------------------------------------------------------------------------------------------------------------
@@ -184,7 +206,16 @@ class AdHocNet:
 
     # ---------------------------------------------------------------------------------------------------------------
     def add_report(self, source_node, target_node, path, full_time):
-        self.reports_list.append([ self.get_current_time(), source_node, target_node, str(path),len(path), full_time])
+        self.reports_list.append(
+            [
+                self.get_current_time(),
+                source_node,
+                target_node,
+                str(path),
+                len(path),
+                full_time,
+            ]
+        )
         return
 
     # ---------------------------------------------------------------------------------------------------------------
@@ -238,18 +269,15 @@ class AdHocNet:
             # if node.node_id == 11:
             #     print("Test")
             for q in node.queue_to_send:
-                if q is RRegPack or q is DataPack:
-                    state = (
-                        state
-                        + q.type
-                        + ": trgt-"
-                        + str(q.target_node_id)
-                        + ":"
-                        + str(q.path)
-                        + ";\n"
-                    )
-                else:
-                    state = state + q.type + ":" + str(q.path) + ";\n"
+                state = (
+                    state
+                    + q.type
+                    + ": dest-"
+                    + str(q.destination_node_id)
+                    + ":"
+                    + str(q.path)
+                    + ";\n"
+                )
             rez.append(state)
         self.debug_nodes_current_state_list.append(rez)
 
@@ -273,14 +301,26 @@ class AdHocNet:
         for dbg in self.debug_nodes_current_state_list:
             curr_sheet.append(dbg)
 
-        wb.save(file_name)
+        try:
+            wb.save(file_name)
+        except Exception as e:
+            print(f"\nFailed to save '{file_name}', cause: {e}")
 
     # ---------------------------------------------------------------------------------------------------------------
     def save_statistics_information(self, file_name):
         wb = openpyxl.Workbook()
         curr_sheet = wb.worksheets[0]
         curr_sheet.title = "Pack"
-        curr_sheet.append(["current time", "source node", "target node", "path",  "hop","delay time"])
+        curr_sheet.append(
+            [
+                "current time",
+                "source node",
+                "destination node",
+                "path",
+                "hop",
+                "delay time",
+            ]
+        )
         for row in self.reports_list:
             curr_sheet.append(row)
 
@@ -304,7 +344,11 @@ class AdHocNet:
                     f"{connect._jamm_threshold:.1f}",
                 ]
             )
-        wb.save(file_name)
+
+        try:
+            wb.save(file_name)
+        except Exception as e:
+            print(f"\nFailed to save '{file_name}', cause: {e}")
 
     # ---------------------------------------------------------------------------------------------------------------
     def save_net_to_file(self, file_name):
@@ -335,7 +379,11 @@ class AdHocNet:
                     str(connect.default_byte_per_tik),
                 ]
             )
-        wb.save(file_name)
+
+        try:
+            wb.save(file_name)
+        except Exception as e:
+            print(f"\nFailed to save '{file_name}', cause: {e}")
 
     # ---------------------------------------------------------------------------------------------------------------
     def load_net_from_file(self, file_name):
@@ -404,4 +452,6 @@ if __name__ == "__main__":
         ad_hoc.run_investigation()
 
     ad_hoc.save_debug_information(file_name=current_directory + r"\debug.xlsx")
-    ad_hoc.save_statistics_information(file_name=current_directory + r"\statistics.xlsx")
+    ad_hoc.save_statistics_information(
+        file_name=current_directory + r"\statistics.xlsx"
+    )
