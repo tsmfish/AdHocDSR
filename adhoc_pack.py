@@ -1,6 +1,8 @@
 from typing import Literal, Any, TypedDict
 from abc import ABC, abstractmethod
 
+VIRTUAL_NODE_ID = -1
+
 PackType = Literal[
     "rreg",
     "rrep",
@@ -93,7 +95,7 @@ class DataPack(BasePack):
         self.id: int = 0
         # variables for test only
         self.add_information: list[Any] = None
-        self.metrics : TypedDict = None
+        self.metrics: TypedDict = None
         self.rrep_list: list[Any] = []
 
     def get_size(self) -> int:
