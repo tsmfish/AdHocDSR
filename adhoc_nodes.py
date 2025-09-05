@@ -13,8 +13,8 @@ class AdHocConnect:
         self.current_bit_rate_error = 0.01
         self.snr = 2
         self.flag_work = True
-        self.default_byte_per_tik = 1000
-        self.current_byte_per_tik = 1000
+        self.default_byte_per_tik = 10000
+        self.current_byte_per_tik = 10000
         self.sent_byte_in_current_tic = 0
         # self.sent_byte_in_current_tic_to_back = 0
         # jamm parameters   -------------------------------------------------
@@ -34,13 +34,24 @@ class AdHocConnect:
     # ---------------------------------------------------------------------------------------------------------------
     def calculate_error_probability(self):
         snr = 1.0
-        self._jamm_threshold = 499
         if self.signal_value > self.noice_value:
             snr = self.signal_value / self.noice_value
-            self._jamm_threshold = min(
-                10000 * ((1 - (1 / (1 + 2.71818281828 ** (-snr)))) ** 2), 499
-            )
+        if  snr > 7:
+            self.current_byte_per_tik = self.default_byte_per_tik
+        elif snr > 5 :
+            self.current_byte_per_tik = self.default_byte_per_tik *0.9
+        elif snr > 4 :
+            self.current_byte_per_tik = self.default_byte_per_tik *0.8
+        elif snr > 3 :
+            self.current_byte_per_tik = self.default_byte_per_tik *0.5
+        elif snr > 2 :
+            self.current_byte_per_tik = self.default_byte_per_tik *0.3
+        else:
+            self.current_byte_per_tik = self.default_byte_per_tik *0.1
 
+        self._jamm_threshold = 10
+        # self._jamm_threshold = 499
+        # self._jamm_threshold = min(10000 * ((1 - (1 / (1 + 2.71818281828 ** (-snr)))) ** 2), 499  )
         return
 
     # ---------------------------------------------------------------------------------------------------------------
@@ -57,23 +68,24 @@ class AdHocConnect:
         non_send_pack = []
 
         for pack in source_node.queue_to_send:
-            # if pack.type ==  "data":
-            #     print("Test")
+
             if pack.get_next_hop() == target_node.node_id:
                 # if source_node.node_id == 7 and pack.type ==  "rrep":
                 #     print("TTest")
+                if pack.type ==  "data":
+                    print("connect Test")
 
-                pack.size_was_sent += self._try_to_send_pack(pack)
-                if pack.size_was_sent == pack.get_size():
+                pack.size_was_sent = self._try_to_send_pack(pack)
+                if pack.size_was_sent >= pack.get_size():
                     target_node.queue_receiving.append(pack)
                     continue
             delay_time = (
                 source_node.model_air.get_current_time()
                 - pack.time_receive_in_current_node
             )
-            if 10 < delay_time:
-                if pack.type == "data":
-                    print("connect TTest")
+            if 100 < delay_time:
+                # if pack.type == "data":
+                #     print("connect TTest")
                 source_node.model_air.add_lost(
                     source_node=pack.path[0],
                     target_node=pack.target_node_id,
@@ -95,16 +107,17 @@ class AdHocConnect:
     # ---------------------------------------------------------------------------------------------------------------
     def _try_to_send_pack(self, pack):
         size = pack.get_size()
-        part_size = 100
-        if size < part_size:
-            part_size = size
-        total_send = 0
-        while (
-            self.current_byte_per_tik > self.sent_byte_in_current_tic + part_size
-        ) and total_send < size:
+        part_size = 10
+        total_send =  pack.size_was_sent
+        if size - total_send < part_size:
+            part_size = size - total_send
+
+        while (  self.current_byte_per_tik > self.sent_byte_in_current_tic + part_size ) and total_send < size:
             self.sent_byte_in_current_tic += part_size
             if not self._check_error(size):
-                total_send += size
+                total_send += part_size
+            if size - total_send < part_size:
+                part_size = size - total_send
         return total_send
 
     # ---------------------------------------------------------------------------------------------------------------

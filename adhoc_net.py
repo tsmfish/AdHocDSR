@@ -30,6 +30,7 @@ class AdHocNet:
         # Control variables  (variables for collecting statistics) --------------------------------------------------
         self.reports_list = []
         self.lost_list = []
+        self.best_path = []
 
         # debug variables   --------------------------------------------------
         self.debug_nodes_current_state_list = []
@@ -169,6 +170,7 @@ class AdHocNet:
         if self.investigation_flag or len(self.investigation_queue) == 0:
             return
         self.investigation_flag = True
+        self.best_path = []
         backup_nodes = self.__copy_nodes_param()
         backup_connect = self.__copy_connects_param()
         investigation_time = self.system_time
@@ -251,6 +253,7 @@ class AdHocNet:
                 full_time,
             ]
         )
+        self.best_path.append([path, full_time])
         return
 
     def add_lost(self, source_node, target_node, path, break_node, pack_type):
@@ -306,8 +309,37 @@ class AdHocNet:
                 cv2.LINE_AA,
             )
 
+        if len(self.best_path) > 0:
+            self.best_path.sort(key=lambda x: x[1])
+            for vv in range(min([len(self.best_path),5])):
+                path = self.best_path[vv][0]
+                for nn in range(1,len(path)):
+                    n1 = self.get_node_by_id(path[nn-1])
+                    n2 = self.get_node_by_id(path[nn])
+                    cv2.line(
+                        output_image,
+                        (n1.position_x, n1.position_y),
+                        (n2.position_x, n2.position_y),
+                        (0, 250, 0),
+                        4,
+                    )
+            self.best_path.sort(key=lambda x: len(x[0]))
+            for vv in range(min([len(self.best_path),5])):
+                path = self.best_path[vv][0]
+                for nn in range(1,len(path)):
+                    n1 = self.get_node_by_id(path[nn-1])
+                    n2 = self.get_node_by_id(path[nn])
+                    cv2.line(
+                        output_image,
+                        (n1.position_x, n1.position_y),
+                        (n2.position_x, n2.position_y),
+                        (200, 0, 200), 2 )
+
+
+
         cv2.imshow("image", output_image)
         cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
     # ---------------------------------------------------------------------------------------------------------------
     def collect_debug_information(self):
@@ -398,7 +430,7 @@ class AdHocNet:
                 "second node",
                 "signal_value",
                 "noice_value",
-                "_jamm_threshold",
+                "byte_per_tik",
             ]
         )
         for connect in self.connect_list:
@@ -408,7 +440,7 @@ class AdHocNet:
                     str(connect.nodes_pointers[1].node_id),
                     str(connect.signal_value),
                     f"{connect.noice_value:.2f}",
-                    f"{connect._jamm_threshold:.1f}",
+                    f"{connect.current_byte_per_tik:.1f}",
                 ]
             )
 
@@ -513,11 +545,12 @@ if __name__ == "__main__":
     # ad_hoc.save_net_to_file(current_directory + r'\AdHoc_Net_test.xlsx')
     ad_hoc.load_net_from_file(file_name=current_directory + r"\AdHoc_Net_test.xlsx")
     ad_hoc.show_net()
-    ad_hoc.send_message(source_node=31, target_node=23, message_length=100000)
+    ad_hoc.send_message(source_node=37, target_node=23, message_length=1000)
     for i in range(200):
         ad_hoc.collect_debug_information()
         ad_hoc.turn_one_tik()
         ad_hoc.run_investigation()
+    ad_hoc.show_net()
 
     ad_hoc.save_debug_information(file_name=current_directory + r"\debug.xlsx")
     ad_hoc.save_statistics_information(
