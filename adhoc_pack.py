@@ -14,14 +14,22 @@ PackType = Literal[
 # Base Class for Packets
 # ---------------------------------------------------------------------------------------------------------------
 class BasePack(ABC):
-    def __init__(self, pack_type: PackType, ttl: int = 32):
+    def __init__(
+        self,
+        pack_type: PackType,
+        source_node_id: int,
+        destination_node_id: int,
+        ttl: int = 32,
+    ):
         self.type: PackType = pack_type
         self.path: list[int] = []
         self.start_time: int = 0
-        self.current_node_id: int = -1
+        self.current_node_id: int = VIRTUAL_NODE_ID
         self.size_was_sent: int = 0
         self.ttl: int = ttl  # Time To Live - limit of hops for package
-        self.time_receive_in_current_node = 0
+        self.time_receive_in_current_node: int = 0
+        self.source_node_id: int = source_node_id
+        self.destination_node_id: int = destination_node_id
 
     @abstractmethod
     def get_size(self) -> int:
@@ -41,11 +49,13 @@ class BasePack(ABC):
 # ---------------------------------------------------------------------------------------------------------------
 # Class Pack RReg represent Route Request DSR packet
 # ---------------------------------------------------------------------------------------------------------------
-class RRegPack(BasePack):
-    def __init__(self, source_node_id: int, target_node_id: int):
-        super().__init__("rreg")
-        self.source_node_id: int = source_node_id
-        self.target_node_id: int = target_node_id
+class RReqPack(BasePack):
+    def __init__(self, source_node_id: int, destination_node_id: int):
+        super().__init__(
+            pack_type="rreg",
+            source_node_id=source_node_id,
+            destination_node_id=destination_node_id,
+        )
         self.path: list[int] = [source_node_id]
         self.current_node_id: int = source_node_id
 
@@ -67,11 +77,12 @@ class RRegPack(BasePack):
 # ---------------------------------------------------------------------------------------------------------------
 class RRepPack(BasePack):
     def __init__(self, path: list[int]):
-        super().__init__("rrep")
+        super().__init__(
+            pack_type="rrep", source_node_id=path[0], destination_node_id=path[-1]
+        )
         self.path: list[int] = path
         self.add_information: list[Any] = []
         self.current_node_id: int = path[-3] if len(path) >= 3 else -1
-        self.target_node_id = path[-1]
 
     def get_next_hop(self) -> int:
         index = self.path.index(self.current_node_id)
@@ -88,9 +99,12 @@ class RRepPack(BasePack):
 # Class Pack Data represent some IP packet with payload
 # ---------------------------------------------------------------------------------------------------------------
 class DataPack(BasePack):
-    def __init__(self, target_node_id: int, data_size: int):
-        super().__init__("data")
-        self.target_node_id: int = target_node_id
+    def __init__(self, source_node_id: int, destination_node_id: int, data_size: int):
+        super().__init__(
+            pack_type="data",
+            source_node_id=source_node_id,
+            destination_node_id=destination_node_id,
+        )
         self.size: int = data_size
         self.id: int = 0
         # variables for test only

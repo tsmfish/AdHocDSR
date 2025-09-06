@@ -5,7 +5,7 @@ import numpy
 import openpyxl
 import os
 
-from adhoc_pack import RRegPack, DataPack
+from adhoc_pack import RReqPack, DataPack
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -237,9 +237,11 @@ class AdHocNet:
         return None
 
     # ---------------------------------------------------------------------------------------------------------------
-    def send_message(self, source_node, target_node, message_length):
-        node = self.get_node_by_id(source_node)
-        node.send_message_to(target_node, message_length)
+    def send_message(
+        self, source_node_id: int, destination_node_id: int, message_length: int
+    ):
+        node = self.get_node_by_id(source_node_id)
+        node.send_message_to(destination_node_id, message_length)
 
     # ---------------------------------------------------------------------------------------------------------------
     def add_report(self, source_node, target_node, path, full_time):
@@ -311,10 +313,10 @@ class AdHocNet:
 
         if len(self.best_path) > 0:
             self.best_path.sort(key=lambda x: x[1])
-            for vv in range(min([len(self.best_path),5])):
+            for vv in range(min([len(self.best_path), 5])):
                 path = self.best_path[vv][0]
-                for nn in range(1,len(path)):
-                    n1 = self.get_node_by_id(path[nn-1])
+                for nn in range(1, len(path)):
+                    n1 = self.get_node_by_id(path[nn - 1])
                     n2 = self.get_node_by_id(path[nn])
                     cv2.line(
                         output_image,
@@ -324,18 +326,18 @@ class AdHocNet:
                         4,
                     )
             self.best_path.sort(key=lambda x: len(x[0]))
-            for vv in range(min([len(self.best_path),5])):
+            for vv in range(min([len(self.best_path), 5])):
                 path = self.best_path[vv][0]
-                for nn in range(1,len(path)):
-                    n1 = self.get_node_by_id(path[nn-1])
+                for nn in range(1, len(path)):
+                    n1 = self.get_node_by_id(path[nn - 1])
                     n2 = self.get_node_by_id(path[nn])
                     cv2.line(
                         output_image,
                         (n1.position_x, n1.position_y),
                         (n2.position_x, n2.position_y),
-                        (200, 0, 200), 2 )
-
-
+                        (200, 0, 200),
+                        2,
+                    )
 
         cv2.imshow("image", output_image)
         cv2.waitKey(0)
@@ -350,12 +352,12 @@ class AdHocNet:
             # if node.node_id == 11:
             #     print("Test")
             for q in node.queue_to_send:
-                if q is RRegPack or q is DataPack:
+                if q is RReqPack or q is DataPack:
                     state = (
                         state
                         + q.type
                         + ": trgt-"
-                        + str(q.target_node_id)
+                        + str(q.destination_node_id)
                         + ":"
                         + str(q.path)
                         + ";\n"
@@ -545,7 +547,7 @@ if __name__ == "__main__":
     # ad_hoc.save_net_to_file(current_directory + r'\AdHoc_Net_test.xlsx')
     ad_hoc.load_net_from_file(file_name=current_directory + r"\AdHoc_Net_test.xlsx")
     ad_hoc.show_net()
-    ad_hoc.send_message(source_node=37, target_node=23, message_length=1000)
+    ad_hoc.send_message(source_node_id=37, destination_node_id=23, message_length=1000)
     for i in range(200):
         ad_hoc.collect_debug_information()
         ad_hoc.turn_one_tik()
