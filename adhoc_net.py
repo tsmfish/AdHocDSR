@@ -12,7 +12,7 @@ import random
 import cv2
 import numpy
 import openpyxl
-import os
+
 
 from adhoc_pack import RReqPack, DataPack
 
@@ -52,15 +52,68 @@ class AdHocNet:
         # jamm parameters   --------------------------------------------------
         self.jamm_x = 700
         self.jamm_y = 800
-        self.jamm_power = 10000  # mkwat
+        self.jamm_power = 20000  # mkwat
 
     # ---------------------------------------------------------------------------------------------------------------
     def create_net(self, net_type = 'LBZ'):
+        self.gloabal_statistics_list = []
+        self.lost_list = []
+        self.best_path = []
+        self.reports_list = []
+        self.investigation_queue = []
+        self.debug_nodes_current_state_list = []
+
         if net_type == 'LBZ':
             self.create_net_LBZ()
+        else:
+            self.create_net_default()
 
     # ---------------------------------------------------------------------------------------------------------------
     def create_net_LBZ(self):
+        nodes_count = random.randint(self._min_node_count, self._max_node_count)
+        for xx in range(nodes_count):
+            new_node = adhoc_nodes.AdHocNode(
+                node_id=xx,
+                y=random.randint(0, self._plase_y_size),
+                x=random.randint(0, self._plase_x_size),
+                model_air=self,
+            )
+            new_node.__conection_count = random.randint(
+                self._min_connect_count, self._max_connect_count
+            )
+            self.nodes_list.append(new_node)
+
+        neighborhood_threhold = (((self._plase_y_size**2) + (self._plase_x_size**2))**0.5)/10 #Pavlo said divide by 10
+
+    #         check neighborhood
+        for nod in self.nodes_list:
+            neighborhood_list = self._find_neighborhood( nod.position_x, nod.position_y, neighborhood_threhold)
+            while len(neighborhood_list) < 3:
+                nod.position_x=random.randint(0, self._plase_x_size)
+                nod.position_y=random.randint(0, self._plase_y_size)
+                neighborhood_list = self._find_neighborhood(nod.position_x, nod.position_y, neighborhood_threhold)
+        #  add connects
+        for nod in self.nodes_list:
+            neighborhood_list = self._find_neighborhood( nod.position_x, nod.position_y, neighborhood_threhold)
+            for neighborhood_node in neighborhood_list:
+                if not nod.check_connect_to(neighborhood_node):
+                    pneighborhood_node = self.get_node_by_id(neighborhood_node)
+                    new_connect = adhoc_nodes.AdHocConnect(nod, pneighborhood_node)
+                    nod.connect_list.append(new_connect)
+                    pneighborhood_node.connect_list.append(new_connect)
+                    self.connect_list.append(new_connect)
+
+        self.set_jamm_to_connects()
+
+    # ---------------------------------------------------------------------------------------------------------------
+    def _find_neighborhood(self, x, y, max_dist):
+        tmp_dist = [[nn.node_id, ( ((nn.position_x - x) ** 2) + ((nn.position_y -y) ** 2))  ** 0.5 ]
+            for nn in self.nodes_list ]
+        rez_list = [nn[0] for nn in  tmp_dist if ((nn[1] < max_dist) and (nn[1] > 1))]
+        return rez_list
+
+    # ---------------------------------------------------------------------------------------------------------------
+    def create_net_default(self):
         nodes_count = random.randint(self._min_node_count, self._max_node_count)
         for xx in range(nodes_count):
             new_node = adhoc_nodes.AdHocNode(
@@ -81,8 +134,8 @@ class AdHocNet:
                 [
                     nn.node_id,
                     (
-                        (nn.position_x - cur_node.position_x) ** 2
-                        + (nn.position_y - cur_node.position_y) ** 2
+                        ((nn.position_x - cur_node.position_x) ** 2)
+                        + ((nn.position_y - cur_node.position_y) ** 2)
                     )
                     ** 0.5,
                 ]
@@ -261,18 +314,20 @@ class AdHocNet:
         node.send_message_to(destination_node_id, message_length)
 
     # ---------------------------------------------------------------------------------------------------------------
-    def add_report(self, source_node, target_node, path, full_time):
+    def add_report(self, source_node, target_node, path, full_time, pack_size):
         self.reports_list.append(
             [
                 self.get_current_time(),
                 source_node,
                 target_node,
+                pack_size,
                 str(path),
                 len(path),
                 full_time,
+
             ]
         )
-        self.best_path.append([path, full_time])
+        self.best_path.append([path, full_time , pack_size])
         return
 
     def add_lost(self, source_node, target_node, path, break_node, pack_type):
@@ -405,8 +460,8 @@ class AdHocNet:
         time_for_min_hop = 0
         if len(self.best_path) > 0:
             min_path = min([len(x[0]) for x in self.best_path])
+            hop_for_bnest_time = min_path
             select_path_time = [x[1] for x in self.best_path if len(x[0]) == min_path]
-
             time_for_min_hop = sum(select_path_time) / len(select_path_time)
 
             best_time = time_for_min_hop
@@ -429,6 +484,7 @@ class AdHocNet:
 
 
             self.gloabal_statistics_list.append([len(self.nodes_list),len(self.connect_list), self.jamm_power,
+                                                 self.best_path[0][2],
                                                  min_path,time_for_min_hop,
                                                  hop_for_bnest_time,best_time])
             self.gloabal_history_list.append(rez_row_header)
@@ -449,23 +505,6 @@ class AdHocNet:
         for dbg in self.debug_nodes_current_state_list:
             curr_sheet.append(dbg)
 
-        try:
-            wb.save(file_name)
-        except Exception as e:
-            print(f"\nFailed to save '{file_name}', cause: {e}")
-
-    # ---------------------------------------------------------------------------------------------------------------
-    def save_gloabal_statistics(self, file_name):
-        wb = openpyxl.Workbook()
-        curr_sheet = wb.worksheets[0]
-        curr_sheet.title = "gloabal_history"
-        for dbg in self.gloabal_history_list:
-            curr_sheet.append(dbg)
-        curr_sheet = wb.create_sheet("gloabal_statistics")
-        curr_sheet.append(['nodes count', 'connects count', 'jamm power', 'min hop',
-                          'DSR time', 'hop for best path', 'best time'])
-        for dbg in self.gloabal_statistics_list:
-            curr_sheet.append(dbg)
         try:
             wb.save(file_name)
         except Exception as e:
@@ -614,25 +653,56 @@ class AdHocNet:
             node.receive_tik()
         # print(self.system_time)
 
+    # ---------------------------------------------------------------------------------------------------------------
+    def _get_node_from(self,xmin, xmax):
+        while(True):
+            select_node = [x for x in self.nodes_list if x.position_x>xmin and x.position_x< xmax]
+            if len(select_node) > 0:
+                return random.choice(select_node)
+            else:
+                xmin = max([0,  xmin-30])
+                xmax = min([self._plase_x_size-1, xmax+30])
+
+
+# ---------------------------------------------------------------------------------------------------------------
+def save_gloabal_statistics( file_name, gloabal_history_list, gloabal_statistics_list):
+    wb = openpyxl.Workbook()
+    curr_sheet = wb.worksheets[0]
+    curr_sheet.title = "gloabal_history"
+    for dbg in gloabal_history_list:
+        curr_sheet.append(dbg)
+    curr_sheet = wb.create_sheet("gloabal_statistics")
+    curr_sheet.append(['nodes count', 'connects count', 'jamm power','size', 'min hop',
+                      'DSR time', 'hop for best path', 'best time'])
+    for dbg in gloabal_statistics_list:
+        curr_sheet.append(dbg)
+    try:
+        wb.save(file_name)
+    except Exception as e:
+        print(f"\nFailed to save '{file_name}', cause: {e}")
+
 
 # ---------------------------------------------------------------------------------------------------------------
 #  Run collect statistic for compare DSR and NN
 # ----------------------------------------------------------------------------------------------------------------
-if __name__ == "__main__":
-    ad_hoc = AdHocNet()
-    ad_hoc.flag_debug = True
-    # ad_hoc.create_net()
-    current_directory = os.getcwd()
-    # ad_hoc.save_net_to_file(current_directory + r'\AdHoc_Net_test.xlsx')
-    ad_hoc.load_net_from_file(file_name=current_directory + r"\AdHoc_Net_test.xlsx")
-    ad_hoc.show_net()
-    ad_hoc.send_message(source_node_id=37, destination_node_id=23, message_length=1000)
-    for i in range(200):
-        ad_hoc.collect_debug_information()
-        ad_hoc.turn_one_tik()
-        ad_hoc.run_investigation()
-    ad_hoc.show_net()
+# if __name__ == "__main__":
+#
+#     # ad_hoc.run_debugs()
+#     run_research_pack_size()
 
-    ad_hoc.save_debug_information(file_name=current_directory + r"\debug.xlsx")
-    ad_hoc.save_statistics_information(  file_name=current_directory + r"\statistics.xlsx")
-    ad_hoc.save_gloabal_statistics(file_name=current_directory + r"\global.xlsx")
+
+    # ad_hoc.create_net()
+    # current_directory = os.getcwd()
+    # # ad_hoc.save_net_to_file(current_directory + r'\AdHoc_Net_test.xlsx')
+    # ad_hoc.load_net_from_file(file_name=current_directory + r"\AdHoc_Net_test.xlsx")
+    # ad_hoc.show_net()
+    # ad_hoc.send_message(source_node_id=37, destination_node_id=23, message_length=1000)
+    # for i in range(200):
+    #     ad_hoc.collect_debug_information()
+    #     ad_hoc.turn_one_tik()
+    #     ad_hoc.run_investigation()
+    # ad_hoc.show_net()
+    #
+    # ad_hoc.save_debug_information(file_name=current_directory + r"\debug.xlsx")
+    # ad_hoc.save_statistics_information(  file_name=current_directory + r"\statistics.xlsx")
+    # ad_hoc.save_gloabal_statistics(file_name=current_directory + r"\global.xlsx")
