@@ -26,6 +26,7 @@ def run_research_pack_size():
                 ad_hoc.collect_debug_information()
                 ad_hoc.turn_one_tik()
                 ad_hoc.run_investigation()
+                print(i)
             gloabal_history_list = gloabal_history_list + ad_hoc.gloabal_history_list
             gloabal_statistics_list = gloabal_statistics_list + ad_hoc.gloabal_statistics_list
         print('\nStep  ' + str(itt) + ' // '+ str (step_count))

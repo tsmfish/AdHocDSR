@@ -19,7 +19,7 @@ class BasePack(ABC):
         pack_type: PackType,
         source_node_id: int,
         destination_node_id: int,
-        ttl: int = 32,
+        ttl: int = 18,
     ):
         self.type: PackType = pack_type
         self.path: list[int] = []

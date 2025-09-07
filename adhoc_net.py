@@ -52,7 +52,7 @@ class AdHocNet:
         # jamm parameters   --------------------------------------------------
         self.jamm_x = 700
         self.jamm_y = 800
-        self.jamm_power = 20000  # mkwat
+        self.jamm_power = 10000  # mkwat
 
     # ---------------------------------------------------------------------------------------------------------------
     def create_net(self, net_type = 'LBZ'):
@@ -64,7 +64,7 @@ class AdHocNet:
         self.debug_nodes_current_state_list = []
 
         if net_type == 'LBZ':
-            self.create_net_LBZ()
+            self.create_net_LBZ_v2()
         else:
             self.create_net_default()
 
@@ -95,6 +95,56 @@ class AdHocNet:
         #  add connects
         for nod in self.nodes_list:
             neighborhood_list = self._find_neighborhood( nod.position_x, nod.position_y, neighborhood_threhold)
+            for neighborhood_node in neighborhood_list:
+                if not nod.check_connect_to(neighborhood_node):
+                    pneighborhood_node = self.get_node_by_id(neighborhood_node)
+                    new_connect = adhoc_nodes.AdHocConnect(nod, pneighborhood_node)
+                    nod.connect_list.append(new_connect)
+                    pneighborhood_node.connect_list.append(new_connect)
+                    self.connect_list.append(new_connect)
+
+        self.set_jamm_to_connects()
+
+    # ---------------------------------------------------------------------------------------------------------------
+    def create_net_LBZ_v2(self):
+        nodes_count = random.randint(self._min_node_count, self._max_node_count)
+        row_count = 4
+        column_count = nodes_count/row_count
+        step_x = self._plase_x_size / (column_count)
+        step_y = self._plase_y_size / row_count
+        sigma_x = int(1.1*step_x)
+        sigma_y = int(1.1 * step_y)
+        for xx in range(nodes_count):
+            pos_x = int((xx // row_count) * step_x)
+            pos_y =int( (xx % row_count) * step_y)
+            pos_x = random.randint(max([0,pos_x-sigma_x]), min([self._plase_x_size-1,pos_x+sigma_x]))
+            pos_y = random.randint(max([0, pos_y - sigma_y]), min([self._plase_y_size - 1, pos_y + sigma_y]))
+
+            new_node = adhoc_nodes.AdHocNode(
+                node_id=xx,
+                y=pos_y,
+                x=pos_x,
+                model_air=self,
+            )
+            new_node.__conection_count = random.randint(
+                self._min_connect_count, self._max_connect_count
+            )
+            self.nodes_list.append(new_node)
+
+        neighborhood_threhold = (((self._plase_y_size**2) + (self._plase_x_size**2))**0.5)/7
+
+    #         check neighborhood
+        for nod in self.nodes_list:
+            neighborhood_list = self._find_neighborhood( nod.position_x, nod.position_y, neighborhood_threhold)
+            while len(neighborhood_list) < 3:
+                nod.position_x=random.randint(0, self._plase_x_size)
+                nod.position_y=random.randint(0, self._plase_y_size)
+                neighborhood_list = self._find_neighborhood(nod.position_x, nod.position_y, neighborhood_threhold)
+        #  add connects
+        for nod in self.nodes_list:
+            neighborhood_list = self._find_neighborhood( nod.position_x, nod.position_y, neighborhood_threhold)
+            if len(neighborhood_list) > 3:
+                neighborhood_list = random.sample(neighborhood_list,3)
             for neighborhood_node in neighborhood_list:
                 if not nod.check_connect_to(neighborhood_node):
                     pneighborhood_node = self.get_node_by_id(neighborhood_node)
