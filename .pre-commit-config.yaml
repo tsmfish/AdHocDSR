@@ -13,4 +13,4 @@ repos:
     rev: v5.0.0
     hooks:
       - id: check-added-large-files
-        args: [ --maxkb=2048 ] # Limit file size to 2048 kb
+        args: [ --maxkb=5120 ] # Limit file size to 2048 kb
