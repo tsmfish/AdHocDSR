@@ -1,3 +1,12 @@
+"""
+references:
+    - https://datatracker.ietf.org/doc/html/rfc4728#:~:text=All%20aspects%20of%20the%20protocol,the%20routes%20currently%20in%20use.
+    reference for constants see section: Protocol Constants and Configuration Variables
+
+    - https://www.ietf.org/rfc/rfc4728.txt Raw text RFC
+    - https://www.researchgate.net/figure/Overall-Basic-Operation-of-the-DSR-Protocol_fig3_267375905 - simulation sample with anisotropy network
+"""
+
 import adhoc_nodes
 import random
 import cv2
