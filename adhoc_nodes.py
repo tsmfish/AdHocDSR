@@ -1,6 +1,7 @@
 import random
 from copy import deepcopy, copy
 from adhoc_pack import RReqPack, BasePack, DataPack, RRepPack
+from bandwidth.wi_fi import calculate_speed_degradation
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -18,10 +19,10 @@ class AdHocConnect:
         self.sent_byte_in_current_tic = 0
         # self.sent_byte_in_current_tic_to_back = 0
         # jamm parameters   -------------------------------------------------
-        self.signal_value = 20.0  # mkwat
+        self.signal_value = 40.0  # mkwat
         self.noice_value = 2.0  # mkwat
         # self.error_probability = 2.0  #
-        self._jamm_threshold = 20.0  #
+
 
     # ---------------------------------------------------------------------------------------------------------------
     def get_nodes(self):
@@ -33,25 +34,31 @@ class AdHocConnect:
 
     # ---------------------------------------------------------------------------------------------------------------
     def calculate_error_probability(self):
-        snr = 1.0
-        if self.signal_value > self.noice_value:
-            snr = self.signal_value / self.noice_value
-        if snr > 7:
-            self.current_byte_per_tik = self.default_byte_per_tik
-        elif snr > 5:
-            self.current_byte_per_tik = self.default_byte_per_tik * 0.9
-        elif snr > 4:
-            self.current_byte_per_tik = self.default_byte_per_tik * 0.8
-        elif snr > 3:
-            self.current_byte_per_tik = self.default_byte_per_tik * 0.5
-        elif snr > 2:
-            self.current_byte_per_tik = self.default_byte_per_tik * 0.3
-        else:
-            self.current_byte_per_tik = self.default_byte_per_tik * 0.1
+        adjust_factor = calculate_speed_degradation( self.signal_value / self.noice_value)
+        self.current_byte_per_tik = self.default_byte_per_tik * adjust_factor
 
-        self._jamm_threshold = 10
-        # self._jamm_threshold = 499
-        # self._jamm_threshold = min(10000 * ((1 - (1 / (1 + 2.71818281828 ** (-snr)))) ** 2), 499  )
+        # if self.signal_value > self.noice_value:
+        #     adjust_factor = calculate_speed_degradation(snr)
+        # else:
+        #     adjust_factor = 0
+        #
+        #
+        # snr = self.signal_value / self.noice_value
+
+        # if snr > 7:
+        #     self.current_byte_per_tik = self.default_byte_per_tik
+        # elif snr > 5:
+        #     self.current_byte_per_tik = self.default_byte_per_tik * 0.9
+        # elif snr > 4:
+        #     self.current_byte_per_tik = self.default_byte_per_tik * 0.8
+        # elif snr > 3:
+        #     self.current_byte_per_tik = self.default_byte_per_tik * 0.5
+        # elif snr > 2:
+        #     self.current_byte_per_tik = self.default_byte_per_tik * 0.3
+        # else:
+        #     self.current_byte_per_tik = self.default_byte_per_tik * 0.1
+
+
         return
 
     # ---------------------------------------------------------------------------------------------------------------
@@ -71,8 +78,8 @@ class AdHocConnect:
             if pack.get_next_hop() == target_node.node_id:
                 # if source_node.node_id == 7 and pack.type ==  "rrep":
                 #     print("TTest")
-                if pack.type == "data":
-                    print("connect Test")
+                # if pack.type == "data":
+                #     print("connect Test")
 
                 pack.size_was_sent = self._try_to_send_pack(pack)
                 if pack.size_was_sent >= pack.get_size():
@@ -115,21 +122,22 @@ class AdHocConnect:
             self.current_byte_per_tik > self.sent_byte_in_current_tic + part_size
         ) and total_send < size:
             self.sent_byte_in_current_tic += part_size
-            if not self._check_error(size):
-                total_send += part_size
+            total_send += part_size
+            # if not self._check_error(size):
+            #     total_send += part_size
             if size - total_send < part_size:
                 part_size = size - total_send
         return total_send
 
     # ---------------------------------------------------------------------------------------------------------------
-    def _check_error(self, size):
-        if random.randint(0, 500) < self._jamm_threshold:
-            return True
-        return False
+    # def _check_error(self, size):
+    #     if random.randint(0, 500) < self._jamm_threshold:
+    #         return True
+    #     return False
 
     # ---------------------------------------------------------------------------------------------------------------
-    def send_pack(self, pack_length_in_byte):
-        return self._use_snr(pack_length_in_byte)
+    # def send_pack(self, pack_length_in_byte):
+    #     return self._use_snr(pack_length_in_byte)
 
         # threshold = self.bit_rate_error
         # # кількість помилок
@@ -142,14 +150,14 @@ class AdHocConnect:
         # return True
 
     # ----------------------------------------------
-    def _use_snr(self, pack_length_in_byte):
-        threshold = 10000 * (
-            (1 - (1 / (1 + 2.71818281828 ** (-self.snr)))) ** 2
-        ) + random.randint(1, 4)
-        for xx in range(0, pack_length_in_byte, 100):
-            if threshold > random.randint(0, 10000):
-                return False
-        return True
+    # def _use_snr(self, pack_length_in_byte):
+    #     threshold = 10000 * (
+    #         (1 - (1 / (1 + 2.71818281828 ** (-self.snr)))) ** 2
+    #     ) + random.randint(1, 4)
+    #     for xx in range(0, pack_length_in_byte, 100):
+    #         if threshold > random.randint(0, 10000):
+    #             return False
+    #     return True
 
     # ----------------------------------------------
     def get_other_node(self, my_id: int):
@@ -174,6 +182,7 @@ class AdHocNode:
         self.queue_wait = []
         self.queue_receiving = []
         self.queue_rereg: list[RReqPack] = []
+        self.wait_rrep = 40 # tic after received first rrep
         # -- # variables for test only--------
 
     # -----------------------------
@@ -293,7 +302,7 @@ class AdHocNode:
         for pack in self.queue_wait:
             if len(pack.rrep_list) > 0:
                 all_time = [rrep.start_time for rrep in pack.rrep_list]
-                if self.model_air.get_current_time() > (min(all_time) + 20):
+                if self.model_air.get_current_time() > (min(all_time) + self.wait_rrep):
                     for rrep in pack.rrep_list:
                         test_pack = copy(pack)
                         test_pack.path = rrep.path

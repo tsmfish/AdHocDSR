@@ -40,6 +40,8 @@ class AdHocNet:
         self.reports_list = []
         self.lost_list = []
         self.best_path = []
+        self.gloabal_statistics_list = []
+        self.gloabal_history_list = []
 
         # debug variables   --------------------------------------------------
         self.debug_nodes_current_state_list = []
@@ -50,10 +52,15 @@ class AdHocNet:
         # jamm parameters   --------------------------------------------------
         self.jamm_x = 700
         self.jamm_y = 800
-        self.jamm_power = 20000  # mkwat
+        self.jamm_power = 10000  # mkwat
 
     # ---------------------------------------------------------------------------------------------------------------
-    def create_net(self):
+    def create_net(self, net_type = 'LBZ'):
+        if net_type == 'LBZ':
+            self.create_net_LBZ()
+
+    # ---------------------------------------------------------------------------------------------------------------
+    def create_net_LBZ(self):
         nodes_count = random.randint(self._min_node_count, self._max_node_count)
         for xx in range(nodes_count):
             new_node = adhoc_nodes.AdHocNode(
@@ -205,6 +212,7 @@ class AdHocNet:
         self.__nodes_from_backup(backup_nodes)
         self.__connects_from_backup(backup_connect)
         self.system_time = investigation_time
+        self.collect_gloabal_statistics()
         self.investigation_flag = False
 
     # ---------------------------------------------------------------------------------------------------------------
@@ -385,6 +393,51 @@ class AdHocNet:
         self.debug_nodes_current_state_list.append(rez)
 
     # ---------------------------------------------------------------------------------------------------------------
+    def collect_gloabal_statistics(self):
+        rez_row_header = ['hop count']
+        rez_row_average_time = ['average delay']
+        rez_row_best_time = ['min delay']
+        rez_row_path_count = ['path count']
+        rez_row_path_better_then_DSR = ['number of paths that are better than choosing the standard DSR']
+
+        best_time = 0
+        hop_for_bnest_time = 0
+        time_for_min_hop = 0
+        if len(self.best_path) > 0:
+            min_path = min([len(x[0]) for x in self.best_path])
+            select_path_time = [x[1] for x in self.best_path if len(x[0]) == min_path]
+
+            time_for_min_hop = sum(select_path_time) / len(select_path_time)
+
+            best_time = time_for_min_hop
+            for hop in range(min_path, min_path + 15):
+                select_path_time = [x[1] for x in self.best_path if len(x[0])==hop]
+                b_dsr = [x for x in select_path_time if x < time_for_min_hop]
+                rez_row_path_better_then_DSR.append(len(b_dsr))
+                rez_row_path_count.append(len(select_path_time))
+                rez_row_header.append(hop)
+                if len(select_path_time) > 0:
+                    min_time = min(select_path_time)
+                    rez_row_best_time.append(min_time)
+                    rez_row_average_time.append(sum(select_path_time) / len(select_path_time))
+                    if best_time > min_time:
+                        best_time = min_time
+                        hop_for_bnest_time = hop
+                else:
+                    rez_row_average_time.append('')
+                    rez_row_best_time.append('')
+
+
+            self.gloabal_statistics_list.append([len(self.nodes_list),len(self.connect_list), self.jamm_power,
+                                                 min_path,time_for_min_hop,
+                                                 hop_for_bnest_time,best_time])
+            self.gloabal_history_list.append(rez_row_header)
+            self.gloabal_history_list.append(rez_row_average_time)
+            self.gloabal_history_list.append(rez_row_best_time)
+            self.gloabal_history_list.append(rez_row_path_count)
+            self.gloabal_history_list.append(rez_row_path_better_then_DSR)
+
+    # ---------------------------------------------------------------------------------------------------------------
     def save_debug_information(self, file_name):
         wb = openpyxl.Workbook()
         curr_sheet = wb.worksheets[0]
@@ -396,6 +449,23 @@ class AdHocNet:
         for dbg in self.debug_nodes_current_state_list:
             curr_sheet.append(dbg)
 
+        try:
+            wb.save(file_name)
+        except Exception as e:
+            print(f"\nFailed to save '{file_name}', cause: {e}")
+
+    # ---------------------------------------------------------------------------------------------------------------
+    def save_gloabal_statistics(self, file_name):
+        wb = openpyxl.Workbook()
+        curr_sheet = wb.worksheets[0]
+        curr_sheet.title = "gloabal_history"
+        for dbg in self.gloabal_history_list:
+            curr_sheet.append(dbg)
+        curr_sheet = wb.create_sheet("gloabal_statistics")
+        curr_sheet.append(['nodes count', 'connects count', 'jamm power', 'min hop',
+                          'DSR time', 'hop for best path', 'best time'])
+        for dbg in self.gloabal_statistics_list:
+            curr_sheet.append(dbg)
         try:
             wb.save(file_name)
         except Exception as e:
@@ -542,7 +612,7 @@ class AdHocNet:
 
         for node in self.nodes_list:
             node.receive_tik()
-        print(self.system_time)
+        # print(self.system_time)
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -564,6 +634,5 @@ if __name__ == "__main__":
     ad_hoc.show_net()
 
     ad_hoc.save_debug_information(file_name=current_directory + r"\debug.xlsx")
-    ad_hoc.save_statistics_information(
-        file_name=current_directory + r"\statistics.xlsx"
-    )
+    ad_hoc.save_statistics_information(  file_name=current_directory + r"\statistics.xlsx")
+    ad_hoc.save_gloabal_statistics(file_name=current_directory + r"\global.xlsx")

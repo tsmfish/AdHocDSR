@@ -254,14 +254,11 @@ def calculate_speed_degradation(
     :return: speed degradation level 1.0..0.0
     """
     mcss = mcs_lookup(snr_db)
-
-    if not mcss:
-        return None
     return (
         mcss[-1]["channels"][channel_width]["guard_interval"][guard_interval]["rate"]
         / WI_FI_4_MAX_RATES_PER_SPATIAL_STREAM
         if mcss
-        else None
+        else 0.0
     )
 
 
