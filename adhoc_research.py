@@ -18,7 +18,7 @@ def run_research_pack_size():
         right_node = ad_hoc._get_node_from(xmin=ad_hoc._plase_x_size - 150, xmax=ad_hoc._plase_x_size - 2,
                                            ymin=ad_hoc._plase_y_size/2,ymax=ad_hoc._plase_y_size-10).node_id
 
-        for message_size in range(500,3000,500):
+        for message_size in range(1000,6000,1000):
             ad_hoc = AdHocNet()
             ad_hoc.flag_debug = True
             ad_hoc.load_net_from_file(file_name=current_directory + r'\AdHoc_Net_research.xlsx')

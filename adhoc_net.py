@@ -52,7 +52,7 @@ class AdHocNet:
         # jamm parameters   --------------------------------------------------
         self.jamm_x = 700
         self.jamm_y = 800
-        self.jamm_power = 30000  # mkwat
+        self.jamm_power = 60000  # mkwat
 
     # ---------------------------------------------------------------------------------------------------------------
     def create_net(self, net_type = 'LBZ'):
@@ -112,13 +112,17 @@ class AdHocNet:
         column_count = nodes_count/row_count
         step_x = self._plase_x_size / (column_count)
         step_y = self._plase_y_size / row_count
-        sigma_x = int(1.1*step_x)
-        sigma_y = int(1.1 * step_y)
+        sigma_x = int(0.7*step_x)
+        sigma_y = int(0.7 * step_y)
         for xx in range(nodes_count):
             pos_x = int((xx // row_count) * step_x)
             pos_y =int( (xx % row_count) * step_y)
-            pos_x = random.randint(max([0,pos_x-sigma_x]), min([self._plase_x_size-1,pos_x+sigma_x]))
-            pos_y = random.randint(max([0, pos_y - sigma_y]), min([self._plase_y_size - 1, pos_y + sigma_y]))
+            if xx % row_count > 1:
+                pos_x = random.randint(max([0,pos_x-sigma_x//2]), min([self._plase_x_size-1,pos_x+sigma_x//2]))
+                pos_y = random.randint(max([0, pos_y - sigma_y//2]), min([self._plase_y_size - 1, pos_y + sigma_y//2]))
+            else:
+                pos_x = random.randint(max([0,pos_x-sigma_x]), min([self._plase_x_size-1,pos_x+sigma_x]))
+                pos_y = random.randint(max([0, pos_y - sigma_y]), min([self._plase_y_size - 1, pos_y + sigma_y]))
 
             new_node = adhoc_nodes.AdHocNode(
                 node_id=xx,
@@ -143,8 +147,8 @@ class AdHocNet:
         #  add connects
         for nod in self.nodes_list:
             neighborhood_list = self._find_neighborhood( nod.position_x, nod.position_y, neighborhood_threhold)
-            if len(neighborhood_list) > 3:
-                neighborhood_list = random.sample(neighborhood_list,3)
+            if len(neighborhood_list) > 4:
+                neighborhood_list = random.sample(neighborhood_list,4)
             for neighborhood_node in neighborhood_list:
                 if not nod.check_connect_to(neighborhood_node):
                     pneighborhood_node = self.get_node_by_id(neighborhood_node)

@@ -37,7 +37,7 @@ class AdHocConnect:
         distance =(((self.nodes_pointers[0].position_x- self.nodes_pointers[1].position_x)**2) +
                    ((self.nodes_pointers[0].position_y - self.nodes_pointers[1].position_y) ** 2)
                    ) ** 0.5
-        th_adjust = 200
+        th_adjust = 300
         if distance > th_adjust:
             signal_value = self.signal_value * (1/((distance/th_adjust)**2))
         else:
