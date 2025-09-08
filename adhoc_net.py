@@ -398,8 +398,7 @@ class AdHocNet:
         )
         return
 
-    # ---------------------------------------------------------------------------------------------------------------
-    def show_net(self):
+    def get_net_image(self):
         output_image = numpy.zeros(
             [self._plase_y_size, self._plase_x_size, 3], dtype=numpy.uint8
         )
@@ -436,7 +435,11 @@ class AdHocNet:
                 1,
                 cv2.LINE_AA,
             )
+        return output_image
 
+    # ---------------------------------------------------------------------------------------------------------------
+    def show_net(self):
+        output_image = self.get_net_image()
         if len(self.best_path) > 0:
             self.best_path.sort(key=lambda x: x[1])
             for vv in range(min([len(self.best_path), 5])):
@@ -464,7 +467,6 @@ class AdHocNet:
                         (200, 0, 200),
                         2,
                     )
-
         cv2.imshow("image", output_image)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
@@ -624,7 +626,7 @@ class AdHocNet:
             print(f"\nFailed to save '{file_name}', cause: {e}")
 
     # ---------------------------------------------------------------------------------------------------------------
-    def save_net_to_file(self, file_name):
+    def save_net_to_file(self, file_name, add_dic ={}):
         wb = openpyxl.Workbook()
         curr_sheet = wb.worksheets[0]
         curr_sheet.title = "Nodes"
@@ -653,6 +655,13 @@ class AdHocNet:
                 ]
             )
 
+        add_dic['jamm_x'] =  self.jamm_x
+        add_dic['jamm_y'] = self.jamm_y
+        add_dic['jamm_powe'] = self.jamm_power
+        curr_sheet = wb.create_sheet("add inform")
+        curr_sheet.append(['key', 'value'])
+        for key in add_dic.keys():
+            curr_sheet.append([ key, add_dic[key]])
         try:
             wb.save(file_name)
         except Exception as e:
@@ -695,7 +704,13 @@ class AdHocNet:
             cur_node.connect_list.append(new_connect)
             other_node.connect_list.append(new_connect)
             self.connect_list.append(new_connect)
+        add_dic = {}
+        if "add inform" in wb.sheetnames:
+            curr_sheet = wb["add inform"]
+            for row in range(2, curr_sheet.max_row + 1):
+                add_dic[curr_sheet.cell(row=row, column=1).value] = curr_sheet.cell(row=row, column=2).value
         self.set_jamm_to_connects()
+        return add_dic
 
     # ---------------------------------------------------------------------------------------------------------------
     def turn_one_tik(self):
