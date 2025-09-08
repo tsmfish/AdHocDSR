@@ -52,7 +52,7 @@ class AdHocNet:
         # jamm parameters   --------------------------------------------------
         self.jamm_x = 700
         self.jamm_y = 800
-        self.jamm_power = 60000  # mkwat
+        self.jamm_power = 30000  # mkwat
 
     # ---------------------------------------------------------------------------------------------------------------
     def create_net(self, net_type = 'LBZ'):
@@ -710,7 +710,8 @@ class AdHocNet:
     # ---------------------------------------------------------------------------------------------------------------
     def _get_node_from(self,xmin, xmax, ymin, ymax,):
         while(True):
-            select_node = [x for x in self.nodes_list if x.position_x>xmin and x.position_x< xmax]
+            select_node = [x for x in self.nodes_list if x.position_x>xmin and x.position_x< xmax
+                           and ymin < x.position_y and ymax > x.position_y]
             if len(select_node) > 0:
                 return random.choice(select_node)
             else:
