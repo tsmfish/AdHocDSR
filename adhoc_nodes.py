@@ -34,15 +34,15 @@ class AdHocConnect:
 
     # ---------------------------------------------------------------------------------------------------------------
     def calculate_error_probability(self):
-        # distance =(((self.nodes_pointers[0].position_x- self.nodes_pointers[1].position_x)**2) +
-        #            ((self.nodes_pointers[0].position_y - self.nodes_pointers[1].position_y) ** 2)
-        #            ) ** 0.5
-        # th_adjust = 200
-        # if distance > th_adjust:
-        #     signal_value = self.signal_value * (1/((distance/th_adjust)**2))
-        # else:
-        #     signal_value = self.signal_value
-        signal_value = self.signal_value
+        distance =(((self.nodes_pointers[0].position_x- self.nodes_pointers[1].position_x)**2) +
+                   ((self.nodes_pointers[0].position_y - self.nodes_pointers[1].position_y) ** 2)
+                   ) ** 0.5
+        th_adjust = 200
+        if distance > th_adjust:
+            signal_value = self.signal_value * (1/((distance/th_adjust)**2))
+        else:
+            signal_value = self.signal_value
+        # signal_value = self.signal_value
         adjust_factor = calculate_speed_degradation( signal_value / self.noice_value)
         self.current_byte_per_tik = int(self.default_byte_per_tik * adjust_factor)
 

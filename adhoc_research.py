@@ -13,8 +13,10 @@ def run_research_pack_size():
         ad_hoc.flag_debug = True
         ad_hoc.create_net()
         ad_hoc.save_net_to_file(current_directory + r'\AdHoc_Net_research.xlsx')
-        left_node = ad_hoc._get_node_from(xmin=0, xmax=150).node_id
-        right_node = ad_hoc._get_node_from(xmin=ad_hoc._plase_x_size - 150, xmax=ad_hoc._plase_x_size - 2).node_id
+        left_node = ad_hoc._get_node_from(xmin=0, xmax=150, ymin=ad_hoc._plase_y_size/2,
+                                          ymax=ad_hoc._plase_y_size-10).node_id
+        right_node = ad_hoc._get_node_from(xmin=ad_hoc._plase_x_size - 150, xmax=ad_hoc._plase_x_size - 2,
+                                           ymin=ad_hoc._plase_y_size/2,ymax=ad_hoc._plase_y_size-10).node_id
 
         for message_size in range(500,3000,500):
             ad_hoc = AdHocNet()
@@ -26,10 +28,10 @@ def run_research_pack_size():
                 ad_hoc.collect_debug_information()
                 ad_hoc.turn_one_tik()
                 ad_hoc.run_investigation()
-                print(i)
+                # print(i)
             gloabal_history_list = gloabal_history_list + ad_hoc.gloabal_history_list
             gloabal_statistics_list = gloabal_statistics_list + ad_hoc.gloabal_statistics_list
-        print('\nStep  ' + str(itt) + ' // '+ str (step_count))
+        print('\nStep  ' + str(itt+1) + ' // '+ str (step_count))
 
     save_gloabal_statistics(file_name=current_directory + r"\global.xlsx",
                             gloabal_history_list=gloabal_history_list,
@@ -87,5 +89,5 @@ def run_random():
 if __name__ == "__main__":
 
     # ad_hoc.run_debugs()
-    # run_research_pack_size()
-    run_random()
+    run_research_pack_size()
+    # run_random()
