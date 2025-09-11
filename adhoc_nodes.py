@@ -42,9 +42,10 @@ class AdHocConnect:
             signal_value = self.signal_value * (1/((distance/th_adjust)**2))
         else:
             signal_value = self.signal_value
-        # signal_value = self.signal_value
-        adjust_factor = calculate_speed_degradation( signal_value / self.noice_value)
+        self.snr = signal_value / self.noice_value
+        adjust_factor = calculate_speed_degradation( self.snr)
         self.current_byte_per_tik = int(self.default_byte_per_tik * adjust_factor)
+
 
 
         # if self.signal_value > self.noice_value:
@@ -280,7 +281,8 @@ class AdHocNode:
                         target_node=cur_pack.path[-1],
                         path=cur_pack.path,
                         full_time=self.model_air.get_current_time()
-                        - cur_pack.start_time,pack_size=cur_pack.get_size()
+                        - cur_pack.start_time,pack_size=cur_pack.get_size(),
+                        add_info=cur_pack.add_information
                     )
             else:
                 if cur_pack.ttl > 0:

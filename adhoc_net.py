@@ -368,7 +368,7 @@ class AdHocNet:
         node.send_message_to(destination_node_id, message_length)
 
     # ---------------------------------------------------------------------------------------------------------------
-    def add_report(self, source_node, target_node, path, full_time, pack_size):
+    def add_report(self, source_node, target_node, path, full_time, pack_size, add_info):
         self.reports_list.append(
             [
                 self.get_current_time(),
@@ -377,6 +377,7 @@ class AdHocNet:
                 pack_size,
                 str(path),
                 len(path),
+                str(add_info),
                 full_time,
 
             ]
@@ -578,6 +579,8 @@ class AdHocNet:
                 "destination node",
                 "path",
                 "hop",
+                "hop count",
+                "add information",
                 "delay time",
             ]
         )
