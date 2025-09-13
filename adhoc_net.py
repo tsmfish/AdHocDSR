@@ -39,7 +39,7 @@ class AdHocNet:
         # Control variables  (variables for collecting statistics) --------------------------------------------------
         self.reports_list = []
         self.lost_list = []
-        self.best_path = []
+        self.log_path = []
         self.gloabal_statistics_list = []
         self.gloabal_history_list = []
 
@@ -58,7 +58,7 @@ class AdHocNet:
     def create_net(self, net_type = 'LBZ'):
         self.gloabal_statistics_list = []
         self.lost_list = []
-        self.best_path = []
+        self.log_path = []
         self.reports_list = []
         self.investigation_queue = []
         self.debug_nodes_current_state_list = []
@@ -293,7 +293,7 @@ class AdHocNet:
         if self.investigation_flag or len(self.investigation_queue) == 0:
             return
         self.investigation_flag = True
-        self.best_path = []
+        self.log_path = []
         backup_nodes = self.__copy_nodes_param()
         backup_connect = self.__copy_connects_param()
         investigation_time = self.system_time
@@ -361,30 +361,11 @@ class AdHocNet:
         return None
 
     # ---------------------------------------------------------------------------------------------------------------
-    def send_message(
-        self, source_node_id: int, destination_node_id: int, message_length: int
-    ):
+    def send_message( self, source_node_id: int, destination_node_id: int, message_length: int  ):
         node = self.get_node_by_id(source_node_id)
         node.send_message_to(destination_node_id, message_length)
 
     # ---------------------------------------------------------------------------------------------------------------
-    def add_report(self, source_node, target_node, path, full_time, pack_size, add_info):
-        self.reports_list.append(
-            [
-                self.get_current_time(),
-                source_node,
-                target_node,
-                pack_size,
-                str(path),
-                len(path),
-                str(add_info),
-                full_time,
-
-            ]
-        )
-        self.best_path.append([path, full_time , pack_size])
-        return
-
     def add_lost(self, source_node, target_node, path, break_node, pack_type):
         self.lost_list.append(
             [
@@ -441,33 +422,33 @@ class AdHocNet:
     # ---------------------------------------------------------------------------------------------------------------
     def show_net(self):
         output_image = self.get_net_image()
-        if len(self.best_path) > 0:
-            self.best_path.sort(key=lambda x: x[1])
-            for vv in range(min([len(self.best_path), 5])):
-                path = self.best_path[vv][0]
-                for nn in range(1, len(path)):
-                    n1 = self.get_node_by_id(path[nn - 1])
-                    n2 = self.get_node_by_id(path[nn])
-                    cv2.line(
-                        output_image,
-                        (n1.position_x, n1.position_y),
-                        (n2.position_x, n2.position_y),
-                        (0, 250, 0),
-                        4,
-                    )
-            self.best_path.sort(key=lambda x: len(x[0]))
-            for vv in range(min([len(self.best_path), 5])):
-                path = self.best_path[vv][0]
-                for nn in range(1, len(path)):
-                    n1 = self.get_node_by_id(path[nn - 1])
-                    n2 = self.get_node_by_id(path[nn])
-                    cv2.line(
-                        output_image,
-                        (n1.position_x, n1.position_y),
-                        (n2.position_x, n2.position_y),
-                        (200, 0, 200),
-                        2,
-                    )
+        # if len(self.best_path) > 0:
+        #     self.best_path.sort(key=lambda x: x[1])
+        #     for vv in range(min([len(self.best_path), 5])):
+        #         path = self.best_path[vv][0]
+        #         for nn in range(1, len(path)):
+        #             n1 = self.get_node_by_id(path[nn - 1])
+        #             n2 = self.get_node_by_id(path[nn])
+        #             cv2.line(
+        #                 output_image,
+        #                 (n1.position_x, n1.position_y),
+        #                 (n2.position_x, n2.position_y),
+        #                 (0, 250, 0),
+        #                 4,
+        #             )
+        #     self.best_path.sort(key=lambda x: len(x[0]))
+        #     for vv in range(min([len(self.best_path), 5])):
+        #         path = self.best_path[vv][0]
+        #         for nn in range(1, len(path)):
+        #             n1 = self.get_node_by_id(path[nn - 1])
+        #             n2 = self.get_node_by_id(path[nn])
+        #             cv2.line(
+        #                 output_image,
+        #                 (n1.position_x, n1.position_y),
+        #                 (n2.position_x, n2.position_y),
+        #                 (200, 0, 200),
+        #                 2,
+        #             )
         cv2.imshow("image", output_image)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
@@ -505,50 +486,76 @@ class AdHocNet:
         self.debug_nodes_current_state_list.append(rez)
 
     # ---------------------------------------------------------------------------------------------------------------
+    def add_report(self, source_node, target_node, path, full_time, pack_size, add_info):
+        self.reports_list.append(
+            [
+                self.get_current_time(),
+                source_node,
+                target_node,
+                pack_size,
+                str(path),
+                len(path),
+                str(add_info),
+                full_time,
+                min(add_info),
+
+            ]
+        )
+        p_hopc_count = len(path)
+        p_average_snr = len(path)* len(path)/( sum(add_info))
+        p_min_snr = len(path)/min(add_info)
+        p_formule = sum([1/x for x in add_info])
+        new_log = {'path':path, 'time':full_time, 'pack size':pack_size, 'snr':add_info,
+                   'metrics hop count':p_hopc_count, 'metric hop /average snr':p_average_snr,
+                   'metrics hop / min snr':p_min_snr,'metrics sum(1/snr)':p_formule}
+        self.log_path.append(new_log)
+        return
+    # ---------------------------------------------------------------------------------------------------------------
     def collect_gloabal_statistics(self):
-        rez_row_header = ['hop count']
-        rez_row_average_time = ['average delay']
-        rez_row_best_time = ['min delay']
-        rez_row_path_count = ['path count']
-        rez_row_path_better_then_DSR = ['number of paths that are better than choosing the standard DSR']
+        if len(self.log_path) > 0:
+            metrics_list = ['metrics hop count', 'metric hop /average snr','metrics hop / min snr','metrics sum(1/snr)']
+            rez_dic = {'nodes count':len(self.nodes_list), 'connects count':len(self.connect_list),
+                       'jamm power':self.jamm_power, 'pack size':self.log_path[0]['pack size']}
+            rez_dic['best time'] = min([x['time'] for x in self.log_path])
+            min_path = min([x['metrics hop count'] for x in self.log_path])
+            select_path = [x for x in self.log_path if x['metrics hop count'] < min_path + 3]
+            for metrics in metrics_list:
+                par_min = min([ x[metrics] for x in select_path])
+                best_time_list = [ x['time'] for x in select_path if x[metrics]==par_min]
+                best_time = sum(best_time_list)/ len(best_time_list)
+                rez_dic['time for ' +metrics]=best_time
 
-        best_time = 0
-        hop_for_bnest_time = 0
-        time_for_min_hop = 0
-        if len(self.best_path) > 0:
-            min_path = min([len(x[0]) for x in self.best_path])
-            hop_for_bnest_time = min_path
-            select_path_time = [x[1] for x in self.best_path if len(x[0]) == min_path]
-            time_for_min_hop = sum(select_path_time) / len(select_path_time)
-
-            best_time = time_for_min_hop
-            for hop in range(min_path, min_path + 15):
-                select_path_time = [x[1] for x in self.best_path if len(x[0])==hop]
-                b_dsr = [x for x in select_path_time if x < time_for_min_hop]
-                rez_row_path_better_then_DSR.append(len(b_dsr))
-                rez_row_path_count.append(len(select_path_time))
-                rez_row_header.append(hop)
-                if len(select_path_time) > 0:
-                    min_time = min(select_path_time)
-                    rez_row_best_time.append(min_time)
-                    rez_row_average_time.append(sum(select_path_time) / len(select_path_time))
-                    if best_time > min_time:
-                        best_time = min_time
-                        hop_for_bnest_time = hop
-                else:
-                    rez_row_average_time.append('')
-                    rez_row_best_time.append('')
+            #
+            #
+            # hop_for_bnest_time = min_path
+            self.gloabal_statistics_list.append(rez_dic)
+            # time_for_min_hop = sum(select_path_time) / len(select_path_time)
+            #
+            # best_time = time_for_min_hop
+            # for hop in range(min_path, min_path + 15):
+            #     select_path_time = [x[1] for x in self.best_path if len(x[0])==hop]
+            #     b_dsr = [x for x in select_path_time if x < time_for_min_hop]
+            #     rez_row_path_better_then_DSR.append(len(b_dsr))
+            #     rez_row_path_count.append(len(select_path_time))
+            #     rez_row_header.append(hop)
+            #     if len(select_path_time) > 0:
+            #         min_time = min(select_path_time)
+            #         rez_row_best_time.append(min_time)
+            #         rez_row_average_time.append(sum(select_path_time) / len(select_path_time))
+            #         if best_time > min_time:
+            #             best_time = min_time
+            #             hop_for_bnest_time = hop
+            #     else:
+            #         rez_row_average_time.append('')
+            #         rez_row_best_time.append('')
 
 
-            self.gloabal_statistics_list.append([len(self.nodes_list),len(self.connect_list), self.jamm_power,
-                                                 self.best_path[0][2],
-                                                 min_path,time_for_min_hop,
-                                                 hop_for_bnest_time,best_time])
-            self.gloabal_history_list.append(rez_row_header)
-            self.gloabal_history_list.append(rez_row_average_time)
-            self.gloabal_history_list.append(rez_row_best_time)
-            self.gloabal_history_list.append(rez_row_path_count)
-            self.gloabal_history_list.append(rez_row_path_better_then_DSR)
+
+            # self.gloabal_history_list.append(rez_row_header)
+            # self.gloabal_history_list.append(rez_row_average_time)
+            # self.gloabal_history_list.append(rez_row_best_time)
+            # self.gloabal_history_list.append(rez_row_path_count)
+            # self.gloabal_history_list.append(rez_row_path_better_then_DSR)
 
     # ---------------------------------------------------------------------------------------------------------------
     def save_debug_information(self, file_name):
@@ -738,17 +745,33 @@ class AdHocNet:
 
 
 # ---------------------------------------------------------------------------------------------------------------
-def save_gloabal_statistics( file_name, gloabal_history_list, gloabal_statistics_list):
+def save_gloabal_statistics( file_name, gloabal_history_list, gloabal_statistics_list, gloabal_log = []):
     wb = openpyxl.Workbook()
     curr_sheet = wb.worksheets[0]
     curr_sheet.title = "gloabal_history"
     for dbg in gloabal_history_list:
         curr_sheet.append(dbg)
+
     curr_sheet = wb.create_sheet("gloabal_statistics")
-    curr_sheet.append(['nodes count', 'connects count', 'jamm power','size', 'min hop',
-                      'DSR time', 'hop for best path', 'best time'])
+    header_key = ['nodes count', 'connects count', 'jamm power','pack size', 'best time',
+                       'time for metrics hop count', 'time for metric hop /average snr',
+                  'time for metrics hop / min snr','time for metrics sum(1/snr)']
+
+    curr_sheet.append(header_key)
     for dbg in gloabal_statistics_list:
-        curr_sheet.append(dbg)
+        save_row = [dbg.get(x,"") for x in header_key]
+        curr_sheet.append(save_row)
+
+    if len(gloabal_log) > 0:
+        curr_sheet = wb.create_sheet("gloabal_log")
+        log_key = ['path', 'time', 'pack size', 'snr',
+                   'metrics hop count', 'metric hop /average snr',
+                   'metrics hop / min snr', 'metrics sum(1/snr)']
+
+        curr_sheet.append(log_key)
+        for dbg in gloabal_log:
+            save_row = [str(dbg.get(x,"")) for x in log_key]
+            curr_sheet.append(save_row)
     try:
         wb.save(file_name)
     except Exception as e:

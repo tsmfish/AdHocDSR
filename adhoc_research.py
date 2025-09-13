@@ -130,7 +130,7 @@ def run_pack_size_changes(sub_dir,runs_name,pack_size_list):
         gloabal_history_list = []
         gloabal_statistics_list = []
         for file in file_list:
-            print('\nPack size ' + str(pk_size) + '  ' + str(file_list.index(file) + 1) + ' // ' + str(len(file)))
+            print('\nPack size ' + str(pk_size) + '  ' + str(file_list.index(file) + 1) + ' // ' + str(len(file_list)))
             ad_hoc = AdHocNet()
             ad_hoc.flag_debug = True
             add_dic = ad_hoc.load_net_from_file(file)
@@ -141,7 +141,7 @@ def run_pack_size_changes(sub_dir,runs_name,pack_size_list):
                 ad_hoc.turn_one_tik()
                 ad_hoc.run_investigation()
 
-            gloabal_history_list = gloabal_history_list + [file] + ad_hoc.gloabal_history_list
+            gloabal_history_list = gloabal_history_list + [[file]] + ad_hoc.gloabal_history_list
             gloabal_statistics_list = gloabal_statistics_list + ad_hoc.gloabal_statistics_list
 
 
@@ -150,7 +150,35 @@ def run_pack_size_changes(sub_dir,runs_name,pack_size_list):
                                 gloabal_history_list=gloabal_history_list,
                                 gloabal_statistics_list=gloabal_statistics_list)
 
+# ---------------------------------------------------------------------------------------------------------------
+def run_jamm_changes(sub_dir,runs_name,pk_size,jamm_list):
+    current_directory = os.getcwd()
+    file_list = get_net_list(sub_dir)
+    for jamm in jamm_list:
+        gloabal_history_list = []
+        gloabal_statistics_list = []
+        gloabal_log = []
+        for file in file_list:
+            print('\nJamm ' + str(jamm) + '  ' + str(file_list.index(file) + 1) + ' // ' + str(len(file_list)))
+            ad_hoc = AdHocNet()
+            ad_hoc.flag_debug = True
+            add_dic = ad_hoc.load_net_from_file(file)
+            ad_hoc.jamm_power = jamm
+            ad_hoc.set_jamm_to_connects()
+            ad_hoc.send_message(source_node_id=add_dic['source_node'], destination_node_id=add_dic['destination_node'],
+                                message_length=pk_size)
+            for i in range(200):
+                ad_hoc.collect_debug_information()
+                ad_hoc.turn_one_tik()
+                ad_hoc.run_investigation()
 
+            gloabal_history_list = gloabal_history_list + [[file]] + ad_hoc.gloabal_history_list
+            gloabal_statistics_list = gloabal_statistics_list + ad_hoc.gloabal_statistics_list
+            gloabal_log = gloabal_log + ad_hoc.log_path
+
+        save_gloabal_statistics(file_name=current_directory + r"\global" + runs_name + str(jamm) + ".xlsx",
+                                gloabal_history_list=gloabal_history_list,
+                                gloabal_statistics_list=gloabal_statistics_list,gloabal_log=gloabal_log)
 
 # ---------------------------------------------------------------------------------------------------------------
 #  Run collect statistic for compare DSR and NN
@@ -160,6 +188,9 @@ if __name__ == "__main__":
     # ad_hoc.run_debugs()
     # run_research_pack_size()
     # run_random()
-    save_sample_generation(sub_dir='test_lbz_1', net_count=30)
+    # save_sample_generation(sub_dir='scenario_lbz_1', net_count=30)
     # print(get_net_list(sub_dir='test1'))
-    # run_pack_size_changes(sub_dir='test1', runs_name='Tsize_', pack_size_list=[1000,5000])
+    # run_pack_size_changes(sub_dir='scenario_lbz_1', runs_name='lbz1_p_size_',
+    #                       pack_size_list=[13000])
+    run_jamm_changes(sub_dir='scenario_lbz_1', runs_name='lbz1_p_jamm_with_snr', pk_size=5000,
+                     jamm_list=[80000,50000,60000,70000,40000, 30000, 20000, 10000 ])

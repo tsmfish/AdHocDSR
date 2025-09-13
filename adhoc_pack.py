@@ -92,7 +92,7 @@ class RRepPack(BasePack):
         return 20 + len(self.path) * 4 + len(self.add_information) * 4
 
     def add_connect_inform(self, value: Any) -> None:
-        self.add_information.append(value)
+        self.add_information = [value] + self.add_information
 
 
 # ---------------------------------------------------------------------------------------------------------------

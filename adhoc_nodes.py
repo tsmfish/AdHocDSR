@@ -264,6 +264,8 @@ class AdHocNode:
                             new_pack = deepcopy(cur_pack)
                             new_pack.path = rreq_pack.path + same_path
                             new_pack.set_current_node(self.node_id)
+                            cur_con = self.get_connect_to(new_pack.get_next_hop())
+                            new_pack.add_connect_inform(cur_con.get_quality_param())
                             if len (new_pack.path) < 20:
                                 self._add_to_queue_to_send(new_pack)
 
