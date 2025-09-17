@@ -284,7 +284,7 @@ class AdHocNet:
             new_connect = adhoc_nodes.AdHocConnect(cur_node, other_node)
             new_connect.default_bit_rate_error = connect["default_bit_rate_error"]
             new_connect.default_byte_per_tik = connect["default_byte_per_tik"]
-            new_connect.signal_value = connect["signal_value"]
+            new_connect.default_signal_value = connect["signal_value"]
             self.connect_list.append(new_connect)
         self.set_jamm_to_connects()
 
@@ -617,6 +617,7 @@ class AdHocNet:
                 "signal_value",
                 "noice_value",
                 "byte_per_tik",
+                "current signal_value",
             ]
         )
         for connect in self.connect_list:
@@ -624,9 +625,11 @@ class AdHocNet:
                 [
                     str(connect.nodes_pointers[0].node_id),
                     str(connect.nodes_pointers[1].node_id),
-                    str(connect.signal_value),
+                    f"{connect.default_signal_value:.2f}",
                     f"{connect.noice_value:.2f}",
                     f"{connect.current_byte_per_tik:.1f}",
+                    f"{connect.current_signal_value:.2f}",
+
                 ]
             )
 

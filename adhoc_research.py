@@ -151,6 +151,22 @@ def run_pack_size_changes(sub_dir,runs_name,pack_size_list):
                                 gloabal_statistics_list=gloabal_statistics_list)
 
 # ---------------------------------------------------------------------------------------------------------------
+def save_jamm_changes(sub_dir,runs_name,jamm_list):
+    current_directory = os.getcwd()
+    file_list = get_net_list(sub_dir)
+    for jamm in jamm_list:
+        for file in file_list:
+            print('\nJamm ' + str(jamm) + '  ' + str(file_list.index(file) + 1) + ' // ' + str(len(file_list)))
+            ad_hoc = AdHocNet()
+            ad_hoc.flag_debug = True
+            add_dic = ad_hoc.load_net_from_file(file)
+            ad_hoc.jamm_power = jamm
+            ad_hoc.set_jamm_to_connects()
+            ad_hoc.save_statistics_information(file_name=current_directory + r"\statistics  " +
+                                                         runs_name+ str(jamm) + ".xlsx" )
+
+
+# ---------------------------------------------------------------------------------------------------------------
 def run_jamm_changes(sub_dir,runs_name,pk_size,jamm_list):
     current_directory = os.getcwd()
     file_list = get_net_list(sub_dir)
@@ -192,5 +208,7 @@ if __name__ == "__main__":
     # print(get_net_list(sub_dir='test1'))
     # run_pack_size_changes(sub_dir='scenario_lbz_1', runs_name='lbz1_p_size_',
     #                       pack_size_list=[13000])
-    run_jamm_changes(sub_dir='scenario_lbz_1', runs_name='lbz1_p_jamm_with_snr', pk_size=5000,
-                     jamm_list=[80000,50000,60000,70000,40000, 30000, 20000, 10000 ])
+    # run_jamm_changes(sub_dir='scenario_lbz_1', runs_name='lbz1_p_jamm_with_snr', pk_size=5000,
+    #                  jamm_list=[30000])
+    save_jamm_changes(sub_dir='scenario_lbz_1', runs_name='lbz1_jamm_with_snr',
+                      jamm_list=[ 500, 300, 100 ])

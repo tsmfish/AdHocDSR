@@ -19,7 +19,8 @@ class AdHocConnect:
         self.sent_byte_in_current_tic = 0
         # self.sent_byte_in_current_tic_to_back = 0
         # jamm parameters   -------------------------------------------------
-        self.signal_value = 80.0  # mkwat
+        self.default_signal_value = 80.0  # mkwat
+        self.current_signal_value = 0
         self.noice_value = 2.0  # mkwat
         # self.error_probability = 2.0  #
 
@@ -39,10 +40,10 @@ class AdHocConnect:
                    ) ** 0.5
         th_adjust = 300
         if distance > th_adjust:
-            signal_value = self.signal_value * (1/((distance/th_adjust)**2))
+            self.current_signal_value = self.default_signal_value * (1/((distance/th_adjust)**2))
         else:
-            signal_value = self.signal_value
-        self.snr = signal_value / self.noice_value
+            self.current_signal_value = self.default_signal_value
+        self.snr = self.current_signal_value / self.noice_value
         adjust_factor = calculate_speed_degradation( self.snr)
         self.current_byte_per_tik = int(self.default_byte_per_tik * adjust_factor)
 
