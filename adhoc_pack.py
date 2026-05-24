@@ -50,11 +50,12 @@ class BasePack(ABC):
 # Class Pack RReg represent Route Request DSR packet
 # ---------------------------------------------------------------------------------------------------------------
 class RReqPack(BasePack):
-    def __init__(self, source_node_id: int, destination_node_id: int):
+    def __init__(self, source_node_id: int, destination_node_id: int, ttl: int = 18):
         super().__init__(
             pack_type="rreg",
             source_node_id=source_node_id,
             destination_node_id=destination_node_id,
+            ttl=ttl,
         )
         self.path: list[int] = [source_node_id]
         self.current_node_id: int = source_node_id
@@ -76,9 +77,9 @@ class RReqPack(BasePack):
 # Class Pack RRep represet Route Response DSR packet
 # ---------------------------------------------------------------------------------------------------------------
 class RRepPack(BasePack):
-    def __init__(self, path: list[int]):
+    def __init__(self, path: list[int], ttl: int = 18):
         super().__init__(
-            pack_type="rrep", source_node_id=path[0], destination_node_id=path[-1]
+            pack_type="rrep", source_node_id=path[0], destination_node_id=path[-1], ttl=ttl
         )
         self.path: list[int] = path
         self.add_information: list[Any] = []
@@ -99,11 +100,12 @@ class RRepPack(BasePack):
 # Class Pack Data represent some IP packet with payload
 # ---------------------------------------------------------------------------------------------------------------
 class DataPack(BasePack):
-    def __init__(self, source_node_id: int, destination_node_id: int, data_size: int):
+    def __init__(self, source_node_id: int, destination_node_id: int, data_size: int, ttl: int = 18):
         super().__init__(
             pack_type="data",
             source_node_id=source_node_id,
             destination_node_id=destination_node_id,
+            ttl=ttl,
         )
         self.size: int = data_size
         self.id: int = 0

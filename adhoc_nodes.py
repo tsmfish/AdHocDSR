@@ -1,15 +1,17 @@
+import math
 import random
 from copy import deepcopy, copy
 from adhoc_pack import RReqPack, BasePack, DataPack, RRepPack
 from bandwidth.wi_fi import calculate_speed_degradation
 
+RREP_WAIT_TICs = 40 # tic after received first rrep
 
 # ---------------------------------------------------------------------------------------------------------------
 #  Class connection
 # ---------------------------------------------------------------------------------------------------------------
 class AdHocConnect:
     def __init__(self, pointer_node1, pointer_node2):
-        self.nodes_pointers = [pointer_node1, pointer_node2]
+        self.nodes_pointers: list[AdHocNode] = [pointer_node1, pointer_node2]
         self.default_bit_rate_error = 0.01
         self.current_bit_rate_error = 0.01
         self.snr = 2
@@ -177,15 +179,21 @@ class AdHocConnect:
             return self.nodes_pointers[1]
         return self.nodes_pointers[0]
 
+    def get_distance(self) -> float:
+        return math.sqrt(
+            (self.nodes_pointers[0].position_x - self.nodes_pointers[1].position_x)**2 +
+            (self.nodes_pointers[0].position_y - self.nodes_pointers[1].position_y)**2
+        )
+
 
 # ---------------------------------------------------------------------------------------------------------------
 #  Class  ad_hoc node
 # --------------------------------------------------------------------------------------------------------------
 class AdHocNode:
-    def __init__(self, node_id: int, y, x, model_air):
+    def __init__(self, node_id: int, y: int, x: int, model_air: int):
         self.node_id: int = node_id
-        self.position_x = x
-        self.position_y = y
+        self.position_x: int = x
+        self.position_y: int = y
         self.connect_list = []
         self.flag_work = True
         self.__conection_count = 3
@@ -194,7 +202,6 @@ class AdHocNode:
         self.queue_wait = []
         self.queue_receiving = []
         self.queue_rereg: list[RReqPack] = []
-        self.wait_rrep = 40 # tic after received first rrep
         # -- # variables for test only--------
 
     # -----------------------------
@@ -246,29 +253,37 @@ class AdHocNode:
                         new_pack = deepcopy(cur_pack)
                         if new_pack.add_node(nn.node_id):
                             self._add_to_queue_to_send(new_pack)
+                else:
+                    print(f"[{self.model_air.get_current_time()}] Сповіщення: Пакет RReqPack від вузла {cur_pack.source_node_id} до вузла {cur_pack.destination_node_id} не може бути доставлений (відкинуто на вузлі {self.node_id} через закінчення TTL).")
+                    self.model_air.add_lost(cur_pack.source_node_id, cur_pack.destination_node_id, cur_pack.path, f"{self.node_id}:TTL_EXPIRED", "rreg")
 
         if isinstance(cur_pack, RRepPack):
             if cur_pack.path[0] == self.node_id:
                 self._check_rrep(cur_pack)
             else:
-                same_path = cur_pack.path[cur_pack.path.index(self.node_id) + 1 :]
-                # if self.node_id == 28:
-                #     print("Test")
-                for rreq_pack in self.queue_rereg:
-                    if cur_pack.path[0] == rreq_pack.path[0]:
-                        fl_add = True
-                        for pp in same_path:
-                            if pp in rreq_pack.path:
-                                fl_add = False
+                if cur_pack.ttl > 0:
+                    cur_pack.ttl -= 1
+                    same_path = cur_pack.path[cur_pack.path.index(self.node_id) + 1 :]
+                    # if self.node_id == 28:
+                    #     print("Test")
+                    for rreq_pack in self.queue_rereg:
+                        if cur_pack.path[0] == rreq_pack.path[0]:
+                            fl_add = True
+                            for pp in same_path:
+                                if pp in rreq_pack.path:
+                                    fl_add = False
 
-                        if fl_add:
-                            new_pack = deepcopy(cur_pack)
-                            new_pack.path = rreq_pack.path + same_path
-                            new_pack.set_current_node(self.node_id)
-                            cur_con = self.get_connect_to(new_pack.get_next_hop())
-                            new_pack.add_connect_inform(cur_con.get_quality_param())
-                            if len (new_pack.path) < 20:
-                                self._add_to_queue_to_send(new_pack)
+                            if fl_add:
+                                new_pack = deepcopy(cur_pack)
+                                new_pack.path = rreq_pack.path + same_path
+                                new_pack.set_current_node(self.node_id)
+                                cur_con = self.get_connect_to(new_pack.get_next_hop())
+                                new_pack.add_connect_inform(cur_con.get_quality_param())
+                                if len (new_pack.path) < 20:
+                                    self._add_to_queue_to_send(new_pack)
+                else:
+                    print(f"[{self.model_air.get_current_time()}] Сповіщення: Пакет RRepPack від вузла {cur_pack.source_node_id} до вузла {cur_pack.destination_node_id} не може бути доставлений (відкинуто на вузлі {self.node_id} через закінчення TTL).")
+                    self.model_air.add_lost(cur_pack.source_node_id, cur_pack.destination_node_id, cur_pack.path, f"{self.node_id}:TTL_EXPIRED", "rrep")
 
         new_queue = []
         for rreq_pack in self.queue_rereg:
@@ -292,10 +307,13 @@ class AdHocNode:
                     cur_pack.ttl = cur_pack.ttl - 1
                     cur_pack.set_current_node(self.node_id)
                     self._add_to_queue_to_send(cur_pack)
+                else:
+                    print(f"[{self.model_air.get_current_time()}] Сповіщення: Пакет DataPack від вузла {cur_pack.source_node_id} до вузла {cur_pack.destination_node_id} не може бути доставлений (відкинуто на вузлі {self.node_id} через закінчення TTL).")
+                    self.model_air.add_lost(cur_pack.source_node_id, cur_pack.destination_node_id, cur_pack.path, f"{self.node_id}:TTL_EXPIRED", "data")
 
     # -----------------------------
     def _send_rrep(self, rreq_pack: RReqPack):
-        new_pack = RRepPack(rreq_pack.path)
+        new_pack = RRepPack(rreq_pack.path, ttl=self.model_air.default_ttl)
         cur_con = self.get_connect_to(rreq_pack.destination_node_id)
         new_pack.add_connect_inform(cur_con.get_quality_param())
         new_pack.set_current_node(self.node_id)
@@ -320,7 +338,7 @@ class AdHocNode:
         for pack in self.queue_wait:
             if len(pack.rrep_list) > 0:
                 all_time = [rrep.start_time for rrep in pack.rrep_list]
-                if self.model_air.get_current_time() > (min(all_time) + self.wait_rrep):
+                if self.model_air.get_current_time() > (min(all_time) + RREP_WAIT_TICs):
                     for rrep in pack.rrep_list:
                         test_pack = copy(pack)
                         test_pack.path = rrep.path
@@ -338,6 +356,7 @@ class AdHocNode:
             source_node_id=self.node_id,
             destination_node_id=destination_node_id,
             data_size=data_size,
+            ttl=self.model_air.default_ttl
         )
         cur_pack.start_time = self.model_air.get_current_time()
         cur_pack.set_current_node(self.node_id)
@@ -352,7 +371,7 @@ class AdHocNode:
         # send RREG pack to all hops
         for con in self.connect_list:
             cur_pack = RReqPack(
-                source_node_id=self.node_id, destination_node_id=destination_node_id
+                source_node_id=self.node_id, destination_node_id=destination_node_id, ttl=self.model_air.default_ttl
             )
             nn = con.get_other_node(self.node_id)
             cur_pack.add_node(nn.node_id)

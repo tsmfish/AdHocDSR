@@ -151,6 +151,33 @@ def run_pack_size_changes(sub_dir,runs_name,pack_size_list):
                                 gloabal_statistics_list=gloabal_statistics_list)
 
 # ---------------------------------------------------------------------------------------------------------------
+def run_ttl_size_changes(sub_dir,runs_name,pk_size: int, min_ttl: int, max_ttl:int):
+    current_directory = os.getcwd()
+    file_list = get_net_list(sub_dir)
+    for current_ttl in range(min_ttl, max_ttl+1):
+        gloabal_history_list = []
+        gloabal_statistics_list = []
+        for file in file_list:
+            print('\nTTL ' + str(current_ttl) + '  ' + str(file_list.index(file) + 1) + ' // ' + str(len(file_list)))
+            ad_hoc = AdHocNet(ttl=current_ttl)
+            ad_hoc.flag_debug = True
+            add_dic = ad_hoc.load_net_from_file(file)
+            ad_hoc.send_message(source_node_id=add_dic['source_node'], destination_node_id=add_dic['destination_node'],
+                                message_length=pk_size)
+            for i in range(200):
+                ad_hoc.collect_debug_information()
+                ad_hoc.turn_one_tik()
+                ad_hoc.run_investigation()
+
+            gloabal_history_list = gloabal_history_list + [[file]] + ad_hoc.gloabal_history_list
+            gloabal_statistics_list = gloabal_statistics_list + ad_hoc.gloabal_statistics_list
+
+
+            save_gloabal_statistics(file_name=current_directory + r"\global" + runs_name + str(current_ttl) + ".xlsx",
+                                gloabal_history_list=gloabal_history_list,
+                                gloabal_statistics_list=gloabal_statistics_list)
+
+# ---------------------------------------------------------------------------------------------------------------
 def save_jamm_changes(sub_dir,runs_name,jamm_list):
     current_directory = os.getcwd()
     file_list = get_net_list(sub_dir)
@@ -204,11 +231,16 @@ if __name__ == "__main__":
     # ad_hoc.run_debugs()
     # run_research_pack_size()
     # run_random()
-    # save_sample_generation(sub_dir='scenario_lbz_1', net_count=30)
-    # print(get_net_list(sub_dir='test1'))
+    save_sample_generation(sub_dir='ttl_long', net_count=20)
+    print(get_net_list(sub_dir='ttl_long'))
     # run_pack_size_changes(sub_dir='scenario_lbz_1', runs_name='lbz1_p_size_',
     #                       pack_size_list=[13000])
+    # run_ttl_size_changes(sub_dir='scenario_lbz_1', runs_name='lbz1_p_ttl_', pk_size=5000,
+    #                      min_ttl=9, max_ttl=15)
+    run_ttl_size_changes(sub_dir='ttl_long', runs_name='lbz1_p_ttl_', pk_size=5000,
+                         min_ttl=9, max_ttl=20)
+
     # run_jamm_changes(sub_dir='scenario_lbz_1', runs_name='lbz1_p_jamm_with_snr', pk_size=5000,
     #                  jamm_list=[30000])
-    save_jamm_changes(sub_dir='scenario_lbz_1', runs_name='lbz1_jamm_with_snr',
-                      jamm_list=[ 500, 300, 100 ])
+    # save_jamm_changes(sub_dir='scenario_lbz_1', runs_name='lbz1_jamm_with_snr',
+    #                   jamm_list=[ 500, 300, 100 ])

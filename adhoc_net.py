@@ -6,6 +6,8 @@ references:
     - https://www.ietf.org/rfc/rfc4728.txt Raw text RFC
     - https://www.researchgate.net/figure/Overall-Basic-Operation-of-the-DSR-Protocol_fig3_267375905 - simulation sample with anisotropy network
 """
+import math
+from typing import Any
 
 import adhoc_nodes
 import random
@@ -16,12 +18,13 @@ import openpyxl
 
 from adhoc_pack import RReqPack, DataPack
 
+DEFAULT_TTL: int = 18
 
 # ---------------------------------------------------------------------------------------------------------------
 #  Class Ad hoc net
 # --------------------------------------------------------------------------------------------------------------
 class AdHocNet:
-    def __init__(self):
+    def __init__(self, ttl: int = DEFAULT_TTL):
         # base parameters   --------------------------------------------------
         self._plase_x_size = 1700
         self._plase_y_size = 500
@@ -29,17 +32,19 @@ class AdHocNet:
         self._max_node_count = 50
         self._min_connect_count = 2
         self._max_connect_count = 5
+        self.default_ttl = ttl
 
         # main variable   --------------------------------------------------
-        self.nodes_list = []
-        self.connect_list = []
+        self.nodes_list: list[adhoc_nodes.AdHocNode] = []
+        self.connect_list: list[adhoc_nodes.AdHocConnect] = []
         self.system_time = 0
         self.id_counter = 1
+        self.average_distances = 0.0
 
         # Control variables  (variables for collecting statistics) --------------------------------------------------
         self.reports_list = []
         self.lost_list = []
-        self.log_path = []
+        self.log_path: list[dict[str, str]] = []
         self.gloabal_statistics_list = []
         self.gloabal_history_list = []
 
@@ -67,6 +72,13 @@ class AdHocNet:
             self.create_net_LBZ_v2()
         else:
             self.create_net_default()
+
+
+        full_distance = 0.0
+        for connection in self.connect_list:
+            full_distance += connection.get_distance()
+
+        self.average_distances = full_distance / len(self.connect_list)
 
     # ---------------------------------------------------------------------------------------------------------------
     def create_net_LBZ(self):
@@ -270,7 +282,7 @@ class AdHocNet:
                     "target": connect.nodes_pointers[1].node_id,
                     "default_bit_rate_error": connect.default_bit_rate_error,
                     "default_byte_per_tik": connect.default_byte_per_tik,
-                    "signal_value": connect.signal_value,
+                    "signal_value": connect.default_signal_value,
                 }
             )
         return backup_connect
@@ -486,7 +498,7 @@ class AdHocNet:
         self.debug_nodes_current_state_list.append(rez)
 
     # ---------------------------------------------------------------------------------------------------------------
-    def add_report(self, source_node, target_node, path, full_time, pack_size, add_info):
+    def add_report(self, source_node, target_node, path: dict[str, Any], full_time, pack_size, add_info):
         self.reports_list.append(
             [
                 self.get_current_time(),
@@ -505,9 +517,10 @@ class AdHocNet:
         p_average_snr = len(path)* len(path)/( sum(add_info))
         p_min_snr = len(path)/min(add_info)
         p_formule = sum([1/x for x in add_info])
+        p_length = self._calculate_length(path)
         new_log = {'path':path, 'time':full_time, 'pack size':pack_size, 'snr':add_info,
                    'metrics hop count':p_hopc_count, 'metric hop /average snr':p_average_snr,
-                   'metrics hop / min snr':p_min_snr,'metrics sum(1/snr)':p_formule}
+                   'metrics hop / min snr':p_min_snr,'metrics sum(1/snr)':p_formule, "length":p_length}
         self.log_path.append(new_log)
         return
     # ---------------------------------------------------------------------------------------------------------------
@@ -516,14 +529,26 @@ class AdHocNet:
             metrics_list = ['metrics hop count', 'metric hop /average snr','metrics hop / min snr','metrics sum(1/snr)']
             rez_dic = {'nodes count':len(self.nodes_list), 'connects count':len(self.connect_list),
                        'jamm power':self.jamm_power, 'pack size':self.log_path[0]['pack size']}
-            rez_dic['best time'] = min([x['time'] for x in self.log_path])
-            min_path = min([x['metrics hop count'] for x in self.log_path])
-            select_path = [x for x in self.log_path if x['metrics hop count'] < min_path + 3]
+            rez_dic["best time"] = min([x["time"] for x in self.log_path])
+            min_path = min([x["metrics hop count"] for x in self.log_path])
+            select_path = [
+                x for x in self.log_path if x["metrics hop count"] < min_path + 3
+            ]
             for metrics in metrics_list:
                 par_min = min([ x[metrics] for x in select_path])
                 best_time_list = [ x['time'] for x in select_path if x[metrics]==par_min]
                 best_time = sum(best_time_list)/ len(best_time_list)
                 rez_dic['time for ' +metrics]=best_time
+            min_hop_path = min(self.log_path, key = lambda item: item['metrics hop count'])
+            best_path = max(self.log_path, key = lambda item: item['snr'])
+            rez_dic['min_hop_time'] = min_hop_path['time']
+            rez_dic['min_hop_length'] = min_hop_path['length']
+            rez_dic['best_time'] = best_path['time']
+            rez_dic['best_length'] = best_path['length']
+
+
+            rez_dic['average_distance'] = self.average_distances
+            rez_dic['ttl'] = self.default_ttl
 
             #
             #
@@ -715,7 +740,7 @@ class AdHocNet:
                 curr_sheet.cell(row=row, column=4).value
             )
             cur_node.connect_list.append(new_connect)
-            other_node.connect_list.append(new_connect)
+            other_node. connect_list.append(new_connect)
             self.connect_list.append(new_connect)
         add_dic = {}
         if "add inform" in wb.sheetnames:
@@ -746,6 +771,28 @@ class AdHocNet:
                 xmin = max([0,  xmin-30])
                 xmax = min([self._plase_x_size-1, xmax+30])
 
+    # ---------------------------------------------------------------------------------------------------------------
+    def _calculate_length(self, path: list[adhoc_nodes.AdHocNode]) -> float | None:
+        if len(path) < 2: return None
+        length = 0.0
+        for node_index in range(0, len(path) - 1):
+            source_node = self._get_node_by_id(path[node_index])
+            dest_node = self._get_node_by_id(path[node_index + 1])
+
+            if source_node and dest_node:
+                length += _get_distance(
+                    source_node.position_x, source_node.position_y,
+                    dest_node.position_x, dest_node.position_y
+                )
+        return length
+
+    def _get_node_by_id(self, node_id: int) -> adhoc_nodes.AdHocNode|None:
+        for node in self.nodes_list:
+            if node_id  == node.node_id:
+                return node
+        return None
+
+        
 
 # ---------------------------------------------------------------------------------------------------------------
 def save_gloabal_statistics( file_name, gloabal_history_list, gloabal_statistics_list, gloabal_log = []):
@@ -758,7 +805,7 @@ def save_gloabal_statistics( file_name, gloabal_history_list, gloabal_statistics
     curr_sheet = wb.create_sheet("gloabal_statistics")
     header_key = ['nodes count', 'connects count', 'jamm power','pack size', 'best time',
                        'time for metrics hop count', 'time for metric hop /average snr',
-                  'time for metrics hop / min snr','time for metrics sum(1/snr)']
+                  'time for metrics hop / min snr','time for metrics sum(1/snr)', 'TTL', "Average distance"]
 
     curr_sheet.append(header_key)
     for dbg in gloabal_statistics_list:
@@ -769,7 +816,7 @@ def save_gloabal_statistics( file_name, gloabal_history_list, gloabal_statistics
         curr_sheet = wb.create_sheet("gloabal_log")
         log_key = ['path', 'time', 'pack size', 'snr',
                    'metrics hop count', 'metric hop /average snr',
-                   'metrics hop / min snr', 'metrics sum(1/snr)']
+                   'metrics hop / min snr', 'metrics sum(1/snr)', 'ttl', 'average_distance']
 
         curr_sheet.append(log_key)
         for dbg in gloabal_log:
@@ -805,3 +852,7 @@ def save_gloabal_statistics( file_name, gloabal_history_list, gloabal_statistics
     # ad_hoc.save_debug_information(file_name=current_directory + r"\debug.xlsx")
     # ad_hoc.save_statistics_information(  file_name=current_directory + r"\statistics.xlsx")
     # ad_hoc.save_gloabal_statistics(file_name=current_directory + r"\global.xlsx")
+
+
+def _get_distance(x1: int, y1: int, x2: int, y2: int) -> float:
+    return math.sqrt((x1-x2)**2 + (y1-y2)**2)
