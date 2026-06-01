@@ -73,12 +73,7 @@ class AdHocNet:
         else:
             self.create_net_default()
 
-
-        full_distance = 0.0
-        for connection in self.connect_list:
-            full_distance += connection.get_distance()
-
-        self.average_distances = full_distance / len(self.connect_list)
+        self._calculate_avarage_lnegth()
 
     # ---------------------------------------------------------------------------------------------------------------
     def create_net_LBZ(self):
@@ -116,6 +111,8 @@ class AdHocNet:
                     self.connect_list.append(new_connect)
 
         self.set_jamm_to_connects()
+
+        self._calculate_avarage_lnegth()
 
     # ---------------------------------------------------------------------------------------------------------------
     def create_net_LBZ_v2(self):
@@ -170,6 +167,8 @@ class AdHocNet:
                     self.connect_list.append(new_connect)
 
         self.set_jamm_to_connects()
+
+        self._calculate_avarage_lnegth()
 
     # ---------------------------------------------------------------------------------------------------------------
     def _find_neighborhood(self, x, y, max_dist):
@@ -529,27 +528,38 @@ class AdHocNet:
             metrics_list = ['metrics hop count', 'metric hop /average snr','metrics hop / min snr','metrics sum(1/snr)']
             rez_dic = {'nodes count':len(self.nodes_list), 'connects count':len(self.connect_list),
                        'jamm power':self.jamm_power, 'pack size':self.log_path[0]['pack size']}
-            rez_dic["best time"] = min([x["time"] for x in self.log_path])
-            min_path = min([x["metrics hop count"] for x in self.log_path])
-            select_path = [
-                x for x in self.log_path if x["metrics hop count"] < min_path + 3
-            ]
-            for metrics in metrics_list:
-                par_min = min([ x[metrics] for x in select_path])
-                best_time_list = [ x['time'] for x in select_path if x[metrics]==par_min]
-                best_time = sum(best_time_list)/ len(best_time_list)
-                rez_dic['time for ' +metrics]=best_time
-            min_hop_path = min(self.log_path, key = lambda item: item['metrics hop count'])
-            best_path = max(self.log_path, key = lambda item: item['snr'])
-            rez_dic['min_hop_time'] = min_hop_path['time']
-            rez_dic['min_hop_length'] = min_hop_path['length']
-            rez_dic['best_time'] = best_path['time']
-            rez_dic['best_length'] = best_path['length']
+            min_hop_path = min(self.log_path, key=lambda item: item['metrics hop count'])
+            best_path = max(self.log_path, key=lambda item: item['metric hop /average snr'])
+            worst_path = min(self.log_path, key=lambda item: item['metric hop /average snr'])
 
+            if min_hop_path and int(min_hop_path['metrics hop count']) <= self.default_ttl:
+                rez_dic["best time"] = min([x["time"] for x in self.log_path])
+                min_path = min([x["metrics hop count"] for x in self.log_path])
+                select_path = [
+                    x for x in self.log_path if x["metrics hop count"] < min_path + 3
+                ]
+                for metrics in metrics_list:
+                    par_min = min([ x[metrics] for x in select_path])
+                    best_time_list = [ x['time'] for x in select_path if x[metrics]==par_min]
+                    best_time = sum(best_time_list)/ len(best_time_list)
+                    rez_dic['time for ' +metrics]=best_time
 
-            rez_dic['average_distance'] = self.average_distances
-            rez_dic['ttl'] = self.default_ttl
+                rez_dic['min_hop_time'] = min_hop_path['time']
+                rez_dic['min_hop_length'] = min_hop_path['length']
+                rez_dic['min_hop_hops'] = min_hop_path['metrics hop count']
 
+                if best_path and int(best_path['metrics hop count']) <= self.default_ttl:
+                    rez_dic['best_time'] = best_path['time']
+                    rez_dic['best_length'] = best_path['length']
+                    rez_dic['best_hops'] = min_hop_path['metrics hop count']
+
+                if best_path and int(best_path['metrics hop count']) <= self.default_ttl:
+                    rez_dic['worst_path_time'] = worst_path['time']
+                    rez_dic['worst_path_length'] = worst_path['length']
+                    rez_dic['worst_path_hops'] = worst_path['metrics hop count']
+
+                rez_dic['average_distance'] = str(self.average_distances)
+                rez_dic['ttl'] = self.default_ttl
             #
             #
             # hop_for_bnest_time = min_path
@@ -748,6 +758,9 @@ class AdHocNet:
             for row in range(2, curr_sheet.max_row + 1):
                 add_dic[curr_sheet.cell(row=row, column=1).value] = curr_sheet.cell(row=row, column=2).value
         self.set_jamm_to_connects()
+
+        self._calculate_avarage_lnegth()
+
         return add_dic
 
     # ---------------------------------------------------------------------------------------------------------------
@@ -792,7 +805,13 @@ class AdHocNet:
                 return node
         return None
 
-        
+    def _calculate_avarage_lnegth(self):
+        full_distance = 0.0
+        for connection in self.connect_list:
+            full_distance += connection.get_distance()
+
+        self.average_distances = full_distance / len(self.connect_list)
+
 
 # ---------------------------------------------------------------------------------------------------------------
 def save_gloabal_statistics( file_name, gloabal_history_list, gloabal_statistics_list, gloabal_log = []):
@@ -805,7 +824,12 @@ def save_gloabal_statistics( file_name, gloabal_history_list, gloabal_statistics
     curr_sheet = wb.create_sheet("gloabal_statistics")
     header_key = ['nodes count', 'connects count', 'jamm power','pack size', 'best time',
                        'time for metrics hop count', 'time for metric hop /average snr',
-                  'time for metrics hop / min snr','time for metrics sum(1/snr)', 'TTL', "Average distance"]
+                  'time for metrics hop / min snr','time for metrics sum(1/snr)',
+                  'min_hop_time', 'min_hop_length', 'min_hop_hops',
+                  'best_time', 'best_length', 'best_hops',
+                  'worst_time', 'worst_length', 'worst_hops',
+                  'average_distance','ttl',
+                  ]
 
     curr_sheet.append(header_key)
     for dbg in gloabal_statistics_list:
@@ -816,7 +840,12 @@ def save_gloabal_statistics( file_name, gloabal_history_list, gloabal_statistics
         curr_sheet = wb.create_sheet("gloabal_log")
         log_key = ['path', 'time', 'pack size', 'snr',
                    'metrics hop count', 'metric hop /average snr',
-                   'metrics hop / min snr', 'metrics sum(1/snr)', 'ttl', 'average_distance']
+                   'metrics hop / min snr', 'metrics sum(1/snr)',
+                   'min_hop_time', 'min_hop_length', 'min_hop_hops',
+                   'best_time', 'best_length', 'best_hops',
+                   'worst_time', 'worst_length', 'worst_hops',
+                   'average_distance', 'ttl',
+                   ]
 
         curr_sheet.append(log_key)
         for dbg in gloabal_log:

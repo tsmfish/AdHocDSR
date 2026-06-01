@@ -151,10 +151,10 @@ def run_pack_size_changes(sub_dir,runs_name,pack_size_list):
                                 gloabal_statistics_list=gloabal_statistics_list)
 
 # ---------------------------------------------------------------------------------------------------------------
-def run_ttl_size_changes(sub_dir,runs_name,pk_size: int, min_ttl: int, max_ttl:int):
+def run_ttl_size_changes(sub_dir,runs_name,pk_size: int, min_ttl: int, max_ttl:int = 0):
     current_directory = os.getcwd()
     file_list = get_net_list(sub_dir)
-    for current_ttl in range(min_ttl, max_ttl+1):
+    for current_ttl in range(min_ttl, max(min_ttl, max_ttl) + 1):
         gloabal_history_list = []
         gloabal_statistics_list = []
         for file in file_list:
@@ -231,14 +231,17 @@ if __name__ == "__main__":
     # ad_hoc.run_debugs()
     # run_research_pack_size()
     # run_random()
-    save_sample_generation(sub_dir='ttl_long', net_count=20)
+    save_sample_generation(sub_dir='scenario_lbz_1', net_count=1)
+    print(get_net_list(sub_dir='scenario_lbz_1'))
+    save_sample_generation(sub_dir='ttl_long', net_count=25)
     print(get_net_list(sub_dir='ttl_long'))
+
     # run_pack_size_changes(sub_dir='scenario_lbz_1', runs_name='lbz1_p_size_',
     #                       pack_size_list=[13000])
-    # run_ttl_size_changes(sub_dir='scenario_lbz_1', runs_name='lbz1_p_ttl_', pk_size=5000,
-    #                      min_ttl=9, max_ttl=15)
+    # run_ttl_size_changes(sub_dir='scenario_lbz_1', runs_name='lbz1_p_ttl_11_', pk_size=5000,
+    #                      min_ttl=11)
     run_ttl_size_changes(sub_dir='ttl_long', runs_name='lbz1_p_ttl_', pk_size=5000,
-                         min_ttl=9, max_ttl=20)
+                         min_ttl=7, max_ttl=20)
 
     # run_jamm_changes(sub_dir='scenario_lbz_1', runs_name='lbz1_p_jamm_with_snr', pk_size=5000,
     #                  jamm_list=[30000])
