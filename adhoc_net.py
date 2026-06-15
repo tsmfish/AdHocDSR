@@ -47,6 +47,12 @@ class AdHocNet:
         self.log_path: list[dict[str, str]] = []
         self.gloabal_statistics_list = []
         self.gloabal_history_list = []
+        self.route_discovery_packets_sent = []
+
+        # jamm parameters   --------------------------------------------------
+        self.jamm_x = 700
+        self.jamm_y = 800
+        self.jamm_power = 30000  # mkwat
 
         # debug variables   --------------------------------------------------
         self.debug_nodes_current_state_list = []
@@ -54,10 +60,48 @@ class AdHocNet:
         self.investigation_flag = False
         self.investigation_queue = []
 
-        # jamm parameters   --------------------------------------------------
-        self.jamm_x = 700
-        self.jamm_y = 800
-        self.jamm_power = 30000  # mkwat
+        # debug variables   --------------------------------------------------
+        self.debug_nodes_current_state_list = []
+        self.flag_debug = False
+        self.investigation_flag = False
+        self.investigation_queue = []
+        
+        self.route_discovery_packets_sent: list[dict[str, Any]] = []
+
+
+
+    # ---------------------------------------------------------------------------------------------------------------
+    def add_lost(self, source_node, target_node, path, break_node, pack_type):
+        self.lost_list.append(
+            [
+                self.get_current_time(),
+                source_node,
+                target_node,
+                str(path),
+                len(path),
+                break_node,
+                pack_type,
+            ]
+        )
+        return
+
+    # ---------------------------------------------------------------------------------------------------------------
+    def register_route_discovery_packet_sent(self, pack) -> None:
+        if pack.type not in ("rreg", "rrep"):
+            return
+
+        self.route_discovery_packets_sent.append(
+            {
+                "time": self.get_current_time(),
+                "type": pack.type,
+                "source_node": pack.source_node_id,
+                "destination_node": pack.destination_node_id,
+                "current_node": pack.current_node_id,
+                "next_hop": pack.get_next_hop(),
+                "path": pack.path[:],
+                "ttl": pack.ttl,
+            }
+        )
 
     # ---------------------------------------------------------------------------------------------------------------
     def create_net(self, net_type = 'LBZ'):
@@ -67,6 +111,7 @@ class AdHocNet:
         self.reports_list = []
         self.investigation_queue = []
         self.debug_nodes_current_state_list = []
+        self.route_discovery_packets_sent = []
 
         if net_type == 'LBZ':
             self.create_net_LBZ_v2()
@@ -723,6 +768,7 @@ class AdHocNet:
         self.id_counter = 1
         self.reports_list = []
         self.debug_nodes_current_state_list = []
+        self.route_discovery_packets_sent = []
 
         wb = openpyxl.load_workbook(file_name, data_only=True)
         # load nodes
@@ -809,6 +855,7 @@ class AdHocNet:
         full_distance = 0.0
         for connection in self.connect_list:
             full_distance += connection.get_distance()
+
 
         self.average_distances = full_distance / len(self.connect_list)
 

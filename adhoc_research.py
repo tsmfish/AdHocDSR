@@ -233,7 +233,7 @@ if __name__ == "__main__":
     # run_random()
     save_sample_generation(sub_dir='scenario_lbz_1', net_count=1)
     print(get_net_list(sub_dir='scenario_lbz_1'))
-    save_sample_generation(sub_dir='ttl_long', net_count=25)
+    save_sample_generation(sub_dir='ttl_long', net_count=20)
     print(get_net_list(sub_dir='ttl_long'))
 
     # run_pack_size_changes(sub_dir='scenario_lbz_1', runs_name='lbz1_p_size_',

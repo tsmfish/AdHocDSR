@@ -44,6 +44,15 @@ class BasePack(ABC):
     def set_current_node(self, node_id: int) -> None:
         """Set the current node ID."""
         self.current_node_id = node_id
+    def decrease_ttl_for_forwarding(self) -> bool:
+        """
+        Decrease TTL before forwarding.
+
+        Returns True if the packet can still be forwarded.
+        Returns False if TTL expired after decrement.
+        """
+        self.ttl -= 1
+        return self.ttl > 0
 
 
 # ---------------------------------------------------------------------------------------------------------------
