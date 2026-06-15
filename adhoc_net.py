@@ -28,8 +28,8 @@ class AdHocNet:
         # base parameters   --------------------------------------------------
         self._plase_x_size = 1700
         self._plase_y_size = 500
-        self._min_node_count = 30
-        self._max_node_count = 50
+        self._min_node_count = 41
+        self._max_node_count = 41
         self._min_connect_count = 2
         self._max_connect_count = 5
         self.default_ttl = ttl
@@ -108,7 +108,7 @@ class AdHocNet:
         )
 
     # ---------------------------------------------------------------------------------------------------------------
-    def create_net(self, net_type = 'LBZ'):
+    def create_net(self, net_type = 'LBZ', node_count: int|None = None):
         self.gloabal_statistics_list = []
         self.lost_list = []
         self.log_path = []
@@ -118,7 +118,7 @@ class AdHocNet:
         self.route_discovery_packets_sent = []
 
         if net_type == 'LBZ':
-            self.create_net_LBZ_v2()
+            self.create_net_LBZ_v2(node_count)
         else:
             self.create_net_default()
 
@@ -164,8 +164,8 @@ class AdHocNet:
         self._calculate_avarage_lnegth()
 
     # ---------------------------------------------------------------------------------------------------------------
-    def create_net_LBZ_v2(self):
-        nodes_count = random.randint(self._min_node_count, self._max_node_count)
+    def create_net_LBZ_v2(self, node_count: int|None = None):
+        nodes_count = node_count if node_count else random.randint(self._min_node_count, self._max_node_count)
         row_count = 3
         column_count = nodes_count/row_count
         step_x = self._plase_x_size / (column_count)

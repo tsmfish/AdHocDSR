@@ -30,6 +30,7 @@ Example:
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -76,6 +77,10 @@ class VisualPacket:
     progress: float = 0.0
     status: VisualPacketStatus = VisualPacketStatus.MOVING
     drop_reason: str = ""
+    drop_time: int|None = None
+
+    def get_size(self) -> int:
+        return 20 + len(self.path) * 4
 
     def clone_for_next_hop(
         self,
@@ -105,6 +110,18 @@ class VisualEvent:
     path: list[int] = field(default_factory=list)
 
 
+def _can_transmit_by_snr(snr: float, pack_length_in_byte: int) -> bool:
+    threshold = 10000 * (
+        (1 - (1 / (1 + 2.71818281828 ** (-snr)))) ** 2
+    ) + random.randint(1, 4)
+
+    for _ in range(0, pack_length_in_byte, 100):
+        if threshold > random.randint(0, 10000):
+            return False
+
+    return True
+
+
 class DsrRouteVisualizer:
     def __init__(
         self,
@@ -120,26 +137,18 @@ class DsrRouteVisualizer:
         self.edges = edges
         self.place_x_size = place_x_size
         self.place_y_size = place_y_size
-        self.jamm_x = jamm_x
-        self.jamm_y = jamm_y
-        self.jamm_power = jamm_power
-        self.nodes: dict[int, VisualNode] = {node.node_id: node for node in nodes}
-        self.edges = edges
-        self.place_x_size = place_x_size
-        self.place_y_size = place_y_size
 
         self.neighbors: dict[int, set[int]] = {node_id: set() for node_id in self.nodes}
         for edge in edges:
             self.neighbors.setdefault(edge.first_node_id, set()).add(edge.second_node_id)
             self.neighbors.setdefault(edge.second_node_id, set()).add(edge.first_node_id)
 
-        self.nodes: dict[int, VisualNode] = {node.node_id: node for node in nodes}
-        self.edges = edges
-        self.place_x_size = place_x_size
-        self.place_y_size = place_y_size
         self.jamm_x = jamm_x
         self.jamm_y = jamm_y
         self.jamm_power = jamm_power
+        self.default_signal_value = 80.0
+        self.default_noise_value = 20.0
+        self.signal_distance_threshold = 300.0
 
         self.packet_speed = 0.08
         self.packet_id_counter = 0
@@ -212,7 +221,6 @@ class DsrRouteVisualizer:
         elif "jamm_powe" in add_dic:
             ad_hoc_net.jamm_power = float(add_dic["jamm_powe"])
 
-        ad_hoc_net.set_jamm_to_connects()
         return cls.from_adhoc_net(ad_hoc_net)
 
     def animate_route_discovery(
@@ -402,6 +410,22 @@ class DsrRouteVisualizer:
                 path=[source_node_id, neighbor_id],
                 ttl=ttl,
             )
+
+            if not self._can_transmit_between_nodes(
+                from_node_id=source_node_id,
+                to_node_id=neighbor_id,
+                pack_length_in_byte=packet.get_size(),
+            ):
+                packet.status = VisualPacketStatus.DROPPED
+                packet.drop_reason = "SNR too low"
+                self.dropped_packets.append(packet)
+                self._add_event(
+                    f"RREQ dropped between {source_node_id} and {neighbor_id}: SNR too low",
+                    packet_type=VisualPacketType.RREQ,
+                    path=packet.path,
+                )
+                continue
+
             self.active_packets.append(packet)
 
         self._add_event(
@@ -474,6 +498,7 @@ class DsrRouteVisualizer:
         if next_ttl <= 0:
             packet.status = VisualPacketStatus.DROPPED
             packet.drop_reason = "TTL expired"
+            packet.drop_time = self.current_time_step
             self.dropped_packets.append(packet)
 
             self._add_event(
@@ -493,6 +518,7 @@ class DsrRouteVisualizer:
             if neighbor_id in self.send_rreq_packs.get(current_node_id, []):
                 packet.status = VisualPacketStatus.DROPPED
                 packet.drop_reason = "RREP already sent"
+                packet.drop_time = self.current_time_step
                 self.dropped_packets.append(packet)
                 self._add_event(
                     f"RREP dropped at node {current_node_id}: RREP already sent to {neighbor_id}",
@@ -510,12 +536,29 @@ class DsrRouteVisualizer:
                 ttl=next_ttl,
                 path=packet.path + [neighbor_id],
             )
+
+            if not self._can_transmit_between_nodes(
+                from_node_id=current_node_id,
+                to_node_id=neighbor_id,
+                pack_length_in_byte=new_packet.get_size(),
+            ):
+                new_packet.status = VisualPacketStatus.DROPPED
+                new_packet.drop_reason = "SNR too low"
+                self.dropped_packets.append(new_packet)
+                self._add_event(
+                    f"RREQ dropped between {current_node_id} and {neighbor_id}: SNR too low",
+                    packet_type=VisualPacketType.RREQ,
+                    path=new_packet.path,
+                )
+                continue
+
             self.active_packets.append(new_packet)
             forwarded = True
 
         if not forwarded:
             packet.status = VisualPacketStatus.DROPPED
             packet.drop_reason = "No unvisited neighbors"
+            packet.drop_time = self.current_time_step
             self.dropped_packets.append(packet)
 
             self._add_event(
@@ -569,6 +612,7 @@ class DsrRouteVisualizer:
         if next_ttl <= 0:
             packet.status = VisualPacketStatus.DROPPED
             packet.drop_reason = "TTL expired"
+            packet.drop_time = self.current_time_step
             self.dropped_packets.append(packet)
 
             self._add_event(
@@ -583,6 +627,7 @@ class DsrRouteVisualizer:
         except ValueError:
             packet.status = VisualPacketStatus.DROPPED
             packet.drop_reason = "Current node is not in RREP path"
+            packet.drop_time = self.current_time_step
             self.dropped_packets.append(packet)
             return
 
@@ -591,6 +636,7 @@ class DsrRouteVisualizer:
         if next_index >= len(packet.path):
             packet.status = VisualPacketStatus.DROPPED
             packet.drop_reason = "RREP path ended before reaching source"
+            packet.drop_time = self.current_time_step
             self.dropped_packets.append(packet)
 
             self._add_event(
@@ -605,6 +651,7 @@ class DsrRouteVisualizer:
         if next_node_id not in self.neighbors.get(current_node_id, set()):
             packet.status = VisualPacketStatus.DROPPED
             packet.drop_reason = "Broken reverse edge"
+            packet.drop_time = self.current_time_step
             self.dropped_packets.append(packet)
 
             self._add_event(
@@ -621,6 +668,22 @@ class DsrRouteVisualizer:
             ttl=next_ttl,
             path=packet.path,
         )
+
+        if not self._can_transmit_between_nodes(
+            from_node_id=current_node_id,
+            to_node_id=next_node_id,
+            pack_length_in_byte=new_packet.get_size(),
+        ):
+            new_packet.status = VisualPacketStatus.DROPPED
+            new_packet.drop_reason = "SNR too low"
+            self.dropped_packets.append(new_packet)
+            self._add_event(
+                f"RREP dropped between {current_node_id} and {next_node_id}: SNR too low",
+                packet_type=VisualPacketType.RREP,
+                path=new_packet.path,
+            )
+            return
+
         self.active_packets.append(new_packet)
 
     def _add_event(
@@ -645,8 +708,8 @@ class DsrRouteVisualizer:
         ax.set_aspect("equal", adjustable="box")
         ax.set_title(self._make_title(), fontsize=13)
 
-        self._draw_edges(ax)
         self._draw_jamming_area(ax)
+        self._draw_edges(ax)
         self._draw_success_paths(ax)
         self._draw_dropped_packets(ax)
         self._draw_nodes(ax, show_node_ids=show_node_ids)
@@ -656,67 +719,6 @@ class DsrRouteVisualizer:
 
         return []
 
-    def _draw_jamming_area(self, ax: Any) -> None:
-        if self.jamm_x is None or self.jamm_y is None or self.jamm_power <= 0:
-            return
-
-        # Радіуси рахуються у координатах самої мережі, а не в координатах вікна.
-        # Формула узгоджена з AdHocNet.noise_spread:
-        # noise = jamm_power / ((distance / 10) ** 2)
-        noise_levels = [
-            (2.0, 0.08),
-            (5.0, 0.12),
-            (10.0, 0.16),
-            (20.0, 0.22),
-        ]
-
-        for noise_level, alpha in noise_levels:
-            radius = 10.0 * (self.jamm_power / noise_level) ** 0.5
-
-            circle = plt.Circle(
-                (self.jamm_x, self.jamm_y),
-                radius,
-                color="#e74c3c",
-                alpha=alpha,
-                zorder=0,
-                clip_on=True,
-                transform=ax.transData,
-            )
-            ax.add_patch(circle)
-
-        ax.scatter(
-            self.jamm_x,
-            self.jamm_y,
-            s=180,
-            marker="X",
-            color="#c0392b",
-            edgecolors="black",
-            linewidths=1.0,
-            zorder=12,
-            clip_on=True,
-        )
-
-        ax.text(
-            self.jamm_x + 12,
-            self.jamm_y - 12,
-            f"РЕБ\nx={self.jamm_x:g}, y={self.jamm_y:g}\nP={self.jamm_power:g}",
-            fontsize=9,
-            color="#922b21",
-            fontweight="bold",
-            zorder=13,
-            clip_on=True,
-            bbox={
-                "boxstyle": "round,pad=0.25",
-                "facecolor": "white",
-                "edgecolor": "#c0392b",
-                "alpha": 0.85,
-            },
-            )
-
-    def _draw_edges(self, ax: Any) -> None:
-        for edge in self.edges:
-            first_node = self.nodes[edge.first_node_id]
-            second_node = self.nodes[edge.second_node_id]
     def _make_title(self) -> str:
         source = self.source_node_id
         destination = self.destination_node_id
@@ -852,14 +854,16 @@ class DsrRouteVisualizer:
         recent_drops = self.dropped_packets[-30:]
 
         for packet in recent_drops:
+            if packet.drop_time and packet.drop_time < self.current_time_step -1:
+                continue
+
             node = self.nodes[packet.current_to_node_id]
 
             ax.scatter(
                 node.x,
                 node.y,
                 s=150,
-                color="none",
-                edgecolors="#e74c3c",
+                color="#e74c3c",
                 linewidths=2.2,
                 marker="x",
                 zorder=9,
@@ -913,6 +917,138 @@ class DsrRouteVisualizer:
                 "boxstyle": "round,pad=0.4",
                 "facecolor": "white",
                 "edgecolor": "#bdc3c7",
+                "alpha": 0.85,
+            },
+        )
+
+    def _calculate_distance(self, first_node_id: int, second_node_id: int) -> float:
+        first_node = self.nodes[first_node_id]
+        second_node = self.nodes[second_node_id]
+
+        return (
+            (first_node.x - second_node.x) ** 2
+            + (first_node.y - second_node.y) ** 2
+        ) ** 0.5
+
+    def _calculate_signal_value(self, distance: float) -> float:
+        if distance > self.signal_distance_threshold:
+            return self.default_signal_value * (
+                1 / ((distance / self.signal_distance_threshold) ** 2)
+            )
+
+        return self.default_signal_value
+
+    def _calculate_jamm_noise_for_node(self, node_id: int) -> float:
+        if self.jamm_x is None or self.jamm_y is None or self.jamm_power <= 0:
+            return 0.0
+
+        node = self.nodes[node_id]
+        distance = ((node.y - self.jamm_y) ** 2 + (node.x - self.jamm_x) ** 2) ** 0.5
+        return self._calculate_jamm_noise(distance)
+
+    def _calculate_link_noise(self, first_node_id: int, second_node_id: int) -> float:
+        return max(
+            self.default_noise_value,
+            self._calculate_jamm_noise_for_node(first_node_id),
+            self._calculate_jamm_noise_for_node(second_node_id),
+        )
+
+    def _calculate_link_snr(self, first_node_id: int, second_node_id: int) -> float:
+        distance = self._calculate_distance(first_node_id, second_node_id)
+        signal_value = self._calculate_signal_value(distance)
+        noise_value = self._calculate_link_noise(first_node_id, second_node_id)
+
+        if noise_value <= 0:
+            return 0.0
+
+        return signal_value / noise_value
+
+    def _can_transmit_between_nodes(
+        self,
+        from_node_id: int,
+        to_node_id: int,
+        pack_length_in_byte: int,
+    ) -> bool:
+        snr = self._calculate_link_snr(from_node_id, to_node_id)
+        return _can_transmit_by_snr(
+            snr=snr,
+            pack_length_in_byte=pack_length_in_byte,
+        )
+
+    def _calculate_jamm_noise(self, distance: float) -> float:
+        if self.jamm_power <= 0:
+            return 0.0
+
+        safe_distance = max(distance, 1.0)
+        return self.jamm_power / ((safe_distance / 10.0) ** 2)
+
+    def _calculate_jamm_noise(self, distance: float) -> float:
+        if self.jamm_power <= 0:
+            return 0.0
+
+        safe_distance = max(distance, 1.0)
+        return self.jamm_power / ((safe_distance / 10.0) ** 2)
+
+    def _calculate_jamm_radius_for_noise(self, noise_level: float) -> float:
+        if self.jamm_power <= 0 or noise_level <= 0:
+            return 0.0
+
+        return 10.0 * (self.jamm_power / noise_level) ** 0.5
+
+    def _draw_jamming_area(self, ax: Any) -> None:
+        if self.jamm_x is None or self.jamm_y is None or self.jamm_power <= 0:
+            return
+
+        noise_levels = [
+            (2.0, 0.07),
+            (5.0, 0.10),
+            (10.0, 0.14),
+            (20.0, 0.18),
+            (40.0, 0.24),
+        ]
+
+        for noise_level, alpha in noise_levels:
+            radius = self._calculate_jamm_radius_for_noise(noise_level)
+
+            circle = plt.Circle(
+                (self.jamm_x, self.jamm_y),
+                radius,
+                color="#e74c3c",
+                alpha=alpha,
+                zorder=0,
+                clip_on=True,
+                transform=ax.transData,
+            )
+            ax.add_patch(circle)
+
+        ax.scatter(
+            self.jamm_x,
+            self.jamm_y,
+            s=180,
+            marker="X",
+            color="#c0392b",
+            edgecolors="black",
+            linewidths=1.0,
+            zorder=12,
+            clip_on=True,
+        )
+
+        center_noise = self._calculate_jamm_noise(1.0)
+
+        ax.text(
+            self.jamm_x + 12,
+            self.jamm_y - 12,
+            # f"РЕБ\nx={self.jamm_x:g}, y={self.jamm_y:g}\nP={self.jamm_power:g}\nN≈{center_noise:.1f}",
+            f"РЕБ\nx={self.jamm_x:g}, y={self.jamm_y:g}",
+            fontsize=9,
+            color="#922b21",
+            fontweight="bold",
+            zorder=13,
+            clip_on=True,
+            bbox={
+                "boxstyle": "round,pad=0.25",
+                "facecolor": "white",
+                "edgecolor": "#c0392b",
                 "alpha": 0.85,
             },
         )
