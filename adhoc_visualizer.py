@@ -112,7 +112,17 @@ class DsrRouteVisualizer:
         edges: list[VisualEdge],
         place_x_size: int = 1700,
         place_y_size: int = 500,
+        jamm_x: float | None = None,
+        jamm_y: float | None = None,
+        jamm_power: float = 0.0,
     ):
+        self.nodes: dict[int, VisualNode] = {node.node_id: node for node in nodes}
+        self.edges = edges
+        self.place_x_size = place_x_size
+        self.place_y_size = place_y_size
+        self.jamm_x = jamm_x
+        self.jamm_y = jamm_y
+        self.jamm_power = jamm_power
         self.nodes: dict[int, VisualNode] = {node.node_id: node for node in nodes}
         self.edges = edges
         self.place_x_size = place_x_size
@@ -123,6 +133,14 @@ class DsrRouteVisualizer:
             self.neighbors.setdefault(edge.first_node_id, set()).add(edge.second_node_id)
             self.neighbors.setdefault(edge.second_node_id, set()).add(edge.first_node_id)
 
+        self.nodes: dict[int, VisualNode] = {node.node_id: node for node in nodes}
+        self.edges = edges
+        self.place_x_size = place_x_size
+        self.place_y_size = place_y_size
+        self.jamm_x = jamm_x
+        self.jamm_y = jamm_y
+        self.jamm_power = jamm_power
+
         self.packet_speed = 0.08
         self.packet_id_counter = 0
         self.current_time_step = 0
@@ -132,7 +150,7 @@ class DsrRouteVisualizer:
         self.delivered_rrep_paths: list[list[int]] = []
         self.dropped_packets: list[VisualPacket] = []
         self.events: list[VisualEvent] = []
-        self.send_rrep_packs: dict[int, list[int]] = {}
+        self.send_rreq_packs: dict[int, list[int]] = {}
 
         self.source_node_id: int | None = None
         self.destination_node_id: int | None = None
@@ -171,6 +189,9 @@ class DsrRouteVisualizer:
             edges=edges,
             place_x_size=ad_hoc_net._plase_x_size,
             place_y_size=ad_hoc_net._plase_y_size,
+            jamm_x=ad_hoc_net.jamm_x,
+            jamm_y=ad_hoc_net.jamm_y,
+            jamm_power=ad_hoc_net.jamm_power,
         )
 
     @classmethod
@@ -178,7 +199,20 @@ class DsrRouteVisualizer:
         from adhoc_net import AdHocNet
 
         ad_hoc_net = AdHocNet(ttl=ttl)
-        ad_hoc_net.load_net_from_file(file_name)
+        add_dic = ad_hoc_net.load_net_from_file(file_name)
+
+        if "jamm_x" in add_dic:
+            ad_hoc_net.jamm_x = float(add_dic["jamm_x"])
+
+        if "jamm_y" in add_dic:
+            ad_hoc_net.jamm_y = float(add_dic["jamm_y"])
+
+        if "jamm_power" in add_dic:
+            ad_hoc_net.jamm_power = float(add_dic["jamm_power"])
+        elif "jamm_powe" in add_dic:
+            ad_hoc_net.jamm_power = float(add_dic["jamm_powe"])
+
+        ad_hoc_net.set_jamm_to_connects()
         return cls.from_adhoc_net(ad_hoc_net)
 
     def animate_route_discovery(
@@ -330,6 +364,7 @@ class DsrRouteVisualizer:
         self.events = []
         self.route_found = False
         self.route_discovery_finished = False
+        self.send_rreq_packs = {}
 
     def _next_packet_id(self) -> int:
         self.packet_id_counter += 1
@@ -395,14 +430,16 @@ class DsrRouteVisualizer:
         for packet in arrived_packets:
             self._process_arrived_packet(packet)
 
-        if not self.active_packets and not self.route_found:
+        # if not self.active_packets and not self.route_found:
+        if not self.active_packets:
             self.route_discovery_finished = True
             self._add_event(
                 "Route discovery finished: destination is unreachable with selected TTL",
                 packet_type=None,
             )
 
-        if not self.active_packets and self.route_found:
+        # if not self.active_packets and self.route_found:
+        if not self.active_packets:
             self.route_discovery_finished = True
             self._add_event(
                 "Route discovery finished: RREP returned to source",
@@ -452,6 +489,19 @@ class DsrRouteVisualizer:
         for neighbor_id in next_neighbors:
             if neighbor_id in packet.path:
                 continue
+
+            if neighbor_id in self.send_rreq_packs.get(current_node_id, []):
+                packet.status = VisualPacketStatus.DROPPED
+                packet.drop_reason = "RREP already sent"
+                self.dropped_packets.append(packet)
+                self._add_event(
+                    f"RREP dropped at node {current_node_id}: RREP already sent to {neighbor_id}",
+                    packet_type=VisualPacketType.RREQ,
+                    path=packet.path,
+                )
+                continue
+
+            self.send_rreq_packs.setdefault(current_node_id, []).append(neighbor_id)
 
             new_packet = packet.clone_for_next_hop(
                 packet_id=self._next_packet_id(),
@@ -564,19 +614,6 @@ class DsrRouteVisualizer:
             )
             return
 
-        if next_node_id in self.send_rrep_packs.get(current_node_id, []):
-            packet.status = VisualPacketStatus.DROPPED
-            packet.drop_reason = "RREP already sent"
-            self.dropped_packets.append(packet)
-            self._add_event(
-                f"RREP dropped at node {current_node_id}: RREP already sent to {next_node_id}",
-                packet_type=VisualPacketType.RREP,
-                path=packet.path,
-            )
-            return
-
-        self.send_rrep_packs[current_node_id].append(next_node_id)
-
         new_packet = packet.clone_for_next_hop(
             packet_id=self._next_packet_id(),
             from_node_id=current_node_id,
@@ -609,6 +646,7 @@ class DsrRouteVisualizer:
         ax.set_title(self._make_title(), fontsize=13)
 
         self._draw_edges(ax)
+        self._draw_jamming_area(ax)
         self._draw_success_paths(ax)
         self._draw_dropped_packets(ax)
         self._draw_nodes(ax, show_node_ids=show_node_ids)
@@ -618,6 +656,67 @@ class DsrRouteVisualizer:
 
         return []
 
+    def _draw_jamming_area(self, ax: Any) -> None:
+        if self.jamm_x is None or self.jamm_y is None or self.jamm_power <= 0:
+            return
+
+        # Радіуси рахуються у координатах самої мережі, а не в координатах вікна.
+        # Формула узгоджена з AdHocNet.noise_spread:
+        # noise = jamm_power / ((distance / 10) ** 2)
+        noise_levels = [
+            (2.0, 0.08),
+            (5.0, 0.12),
+            (10.0, 0.16),
+            (20.0, 0.22),
+        ]
+
+        for noise_level, alpha in noise_levels:
+            radius = 10.0 * (self.jamm_power / noise_level) ** 0.5
+
+            circle = plt.Circle(
+                (self.jamm_x, self.jamm_y),
+                radius,
+                color="#e74c3c",
+                alpha=alpha,
+                zorder=0,
+                clip_on=True,
+                transform=ax.transData,
+            )
+            ax.add_patch(circle)
+
+        ax.scatter(
+            self.jamm_x,
+            self.jamm_y,
+            s=180,
+            marker="X",
+            color="#c0392b",
+            edgecolors="black",
+            linewidths=1.0,
+            zorder=12,
+            clip_on=True,
+        )
+
+        ax.text(
+            self.jamm_x + 12,
+            self.jamm_y - 12,
+            f"РЕБ\nx={self.jamm_x:g}, y={self.jamm_y:g}\nP={self.jamm_power:g}",
+            fontsize=9,
+            color="#922b21",
+            fontweight="bold",
+            zorder=13,
+            clip_on=True,
+            bbox={
+                "boxstyle": "round,pad=0.25",
+                "facecolor": "white",
+                "edgecolor": "#c0392b",
+                "alpha": 0.85,
+            },
+            )
+
+    def _draw_edges(self, ax: Any) -> None:
+        for edge in self.edges:
+            first_node = self.nodes[edge.first_node_id]
+            second_node = self.nodes[edge.second_node_id]
     def _make_title(self) -> str:
         source = self.source_node_id
         destination = self.destination_node_id

@@ -51,8 +51,12 @@ class AdHocNet:
 
         # jamm parameters   --------------------------------------------------
         self.jamm_x = 700
-        self.jamm_y = 800
+        self.jamm_y = 250
         self.jamm_power = 30000  # mkwat
+
+        # debug variables   --------------------------------------------------
+        self.debug_nodes_current_state_list = []
+        self.flag_debug = False
 
         # debug variables   --------------------------------------------------
         self.debug_nodes_current_state_list = []
@@ -750,7 +754,7 @@ class AdHocNet:
 
         add_dic['jamm_x'] =  self.jamm_x
         add_dic['jamm_y'] = self.jamm_y
-        add_dic['jamm_powe'] = self.jamm_power
+        add_dic['jamm_power'] = self.jamm_power
         curr_sheet = wb.create_sheet("add inform")
         curr_sheet.append(['key', 'value'])
         for key in add_dic.keys():
