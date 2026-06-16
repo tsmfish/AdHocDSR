@@ -3,8 +3,8 @@ from __init__ import _net_file_name, _ttl
 
 
 ttl = _ttl
-source_node_id = 1
-destination_node_id = 25
+source_node_id = 2
+destination_node_id = 38
 
 if __name__ == "__main__":
     (DsrRouteVisualizer.from_xlsx(

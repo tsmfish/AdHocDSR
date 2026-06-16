@@ -39,6 +39,8 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.widgets import Button, TextBox
 
+SNR_LIMIT = 1
+
 
 class VisualPacketType(str, Enum):
     RREQ = "RREQ"
@@ -418,6 +420,7 @@ class DsrRouteVisualizer:
             ):
                 packet.status = VisualPacketStatus.DROPPED
                 packet.drop_reason = "SNR too low"
+                packet.drop_time = self.current_time_step
                 self.dropped_packets.append(packet)
                 self._add_event(
                     f"RREQ dropped between {source_node_id} and {neighbor_id}: SNR too low",
@@ -544,6 +547,7 @@ class DsrRouteVisualizer:
             ):
                 new_packet.status = VisualPacketStatus.DROPPED
                 new_packet.drop_reason = "SNR too low"
+                new_packet.drop_time = self.current_time_step
                 self.dropped_packets.append(new_packet)
                 self._add_event(
                     f"RREQ dropped between {current_node_id} and {neighbor_id}: SNR too low",
@@ -676,6 +680,7 @@ class DsrRouteVisualizer:
         ):
             new_packet.status = VisualPacketStatus.DROPPED
             new_packet.drop_reason = "SNR too low"
+            new_packet.drop_time = self.current_time_step
             self.dropped_packets.append(new_packet)
             self._add_event(
                 f"RREP dropped between {current_node_id} and {next_node_id}: SNR too low",
@@ -854,7 +859,7 @@ class DsrRouteVisualizer:
         recent_drops = self.dropped_packets[-30:]
 
         for packet in recent_drops:
-            if packet.drop_time and packet.drop_time < self.current_time_step -1:
+            if not packet.drop_time or packet.drop_time < self.current_time_step + 4:
                 continue
 
             node = self.nodes[packet.current_to_node_id]
@@ -970,17 +975,12 @@ class DsrRouteVisualizer:
         pack_length_in_byte: int,
     ) -> bool:
         snr = self._calculate_link_snr(from_node_id, to_node_id)
+
+        return snr > SNR_LIMIT
         return _can_transmit_by_snr(
             snr=snr,
             pack_length_in_byte=pack_length_in_byte,
         )
-
-    def _calculate_jamm_noise(self, distance: float) -> float:
-        if self.jamm_power <= 0:
-            return 0.0
-
-        safe_distance = max(distance, 1.0)
-        return self.jamm_power / ((safe_distance / 10.0) ** 2)
 
     def _calculate_jamm_noise(self, distance: float) -> float:
         if self.jamm_power <= 0:
@@ -1039,7 +1039,7 @@ class DsrRouteVisualizer:
             self.jamm_x + 12,
             self.jamm_y - 12,
             # f"РЕБ\nx={self.jamm_x:g}, y={self.jamm_y:g}\nP={self.jamm_power:g}\nN≈{center_noise:.1f}",
-            f"РЕБ\nx={self.jamm_x:g}, y={self.jamm_y:g}",
+            f"РЕБ",
             fontsize=9,
             color="#922b21",
             fontweight="bold",

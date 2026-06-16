@@ -5,8 +5,8 @@ from adhoc_visualizer import DsrRouteVisualizer
 ad_hoc = AdHocNet(ttl=8)
 ad_hoc.create_net()
 
-source_node_id = 1
-destination_node_id = 25
+source_node_id = 2
+destination_node_id = 38
 
 if __name__ == "__main__":
     (DsrRouteVisualizer.from_adhoc_net(ad_hoc)
